@@ -1,0 +1,10 @@
+
+# files for sequencing/seq data
+symlinks/
+
+# files from slurm system
+*log
+*out
+
+# files from CGE output
+*/Sepi*/
