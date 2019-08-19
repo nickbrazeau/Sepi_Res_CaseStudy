@@ -39,7 +39,7 @@ rule all:
 
 rule get_tandem_repeats:
     output: 'Sepi_Res_CaseStudy.tandemrepeats'
-    shell: 'exact-tandems 25 {REF} > {output}'
+    shell: 'exact-tandems {REF} 25 > {output}'
 
 
 rule get_exact_repeats:
