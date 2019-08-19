@@ -41,8 +41,7 @@ rule all:
 ##########################################################################################
 ##########################################################################################
 rule Annotate_POP_SNPeffvariants:
-	input: vcf = 'variants/{ProjName}_HaploCaller_joint.pass.vcf',
-	       snpeff='variants/{ProjName}_HaploCaller_joint.snpEff.vcf'
+	input: vcf = 'variants/{ProjName}_HaploCaller_joint.pass.vcf', snpeff='variants/{ProjName}_HaploCaller_joint.snpEff.vcf'
 	output: 'variants/{ProjName}_HaploCaller_joint.ann.vcf'
 	shell: 'java -jar /nas/longleaf/apps/gatk/3.8-0/GenomeAnalysisTK.jar -T VariantAnnotator \
 		-R {REF} \
@@ -56,14 +55,14 @@ rule snpEff_Pop_variants:
 	output: 'variants/{ProjName}_HaploCaller_joint.snpEff.vcf'
 	shell: 'snpEff -v -o gatk Staphylococcus_epidermidis_atcc_12228 {input.vcf} > {output}'
 
-rule select_variants :
+rule select_variants:
 	input: 'variants/{ProjName}_HaploCaller_joint.qual.vcf'
 	output: 'variants/{ProjName}_HaploCaller_joint.pass.vcf'
 	shell: 'gatk --java-options "-Xmx4g -Xms4g" SelectVariants \
 		-R {REF} -V {input} --output {output} \
 		-select "vc.isNotFiltered()"'
 
-rule filter_variants :
+rule filter_variants:
 	input: 'variants/{ProjName}_HaploCaller_joint.raw.vcf'
 	output: 'variants/{ProjName}_HaploCaller_joint.qual.vcf'
 	shell: 'gatk --java-options "-Xmx4g -Xms4g" VariantFiltration \
@@ -94,22 +93,6 @@ rule combine_gvcfs:
 		    --output {output}'
 
 
-
-# rule combine_gvcfs:
-# 	input: map = '/proj/ideel/meshnick/users/NickB/Projects/Sepidermidis_resistance_hosp/names/Sepi_gvcfs.sample_map',
-# 		   intervals = '/proj/ideel/meshnick/users/NickB/Projects/Sepidermidis_resistance_hosp/intervals/chr.intervals'
-# 	output: scrtchdir + 'variants/Sepi.genomicsdb'
-# 	shell: 'gatk --java-options "-Xmx4g -Xms4g" \
-# 		GenomicsDBImport \
-# 		--intervals {input.intervals} \
-# 		--batch-size 50 \
-# 		--sample-name-map {input.map} \
-# 		--genomicsdb-workspace-path {output}'
-# GenomicsDBImport currently only works with diploid data
-
-
-
-
 rule haplotype_caller:
 	input: readdir + '{sample}.bam',
 	output: 'variants/{sample}_HaploCaller.raw.g.vcf'
@@ -118,7 +101,3 @@ rule haplotype_caller:
 		-ploidy 1 \
 		-ERC GVCF \
 		--output {output} '
-
-#--stand_call_conf 30 \
-# This is The minimum phred-scaled confidence threshold at which variants should be called
-# This should be taken care of in hard filters. Going to leave everything at default for initial variant calling and then filter down later
