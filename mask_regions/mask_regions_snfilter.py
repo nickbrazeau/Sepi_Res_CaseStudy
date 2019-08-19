@@ -34,6 +34,16 @@ rule all:
 ####################           Identify Low-Complexity Regions             ###############
 ##########################################################################################
 
+rule get_tandem_repeats:
+    output: 'Sepi_Res_CaseStudy.tandemrepeats'
+    shell: 'exact-tandems 25 {REF} > {output}'
+
+
+rule get_exact_repeats:
+    output: 'Sepi_Res_CaseStudy.exactrepeats'
+    shell: 'repeat-match -n 25 {REF} > {output}'
+
+
 # http://mummer.sourceforge.net/manual/#identifyingrepeats
 rule get_coords_from_nucmer:
     input: "Sepi_Res_CaseStudy.delta"
