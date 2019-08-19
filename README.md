@@ -26,3 +26,8 @@ you will need to run the two "pipelines" below:
 * Item
    * Mixed  
    * Mixed
+
+* Bullet 1
+* Bullet 2
+  * Bullet 2a
+  * Bullet 2b

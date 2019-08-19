@@ -26,9 +26,8 @@ ProjName = 'Sepi_Res_CaseStudy'
 
 
 rule all:
-    input: "repeatmasker.log"
 #    input: "nucmer/nucmer.log"
-#     input: "Sepidermidis_resistance_hosp.coords"
+     input: "Sepi_Res_CaseStudy.coords"
 
 
 ##########################################################################################
@@ -44,8 +43,3 @@ rule get_coords_from_nucmer:
 rule run_nucmer:
     output: "nucmer/nucmer.log"
     shell: 'nucmer --maxmatch --nosimplify --prefix=Sepi_Res_CaseStudy {REF} {REF} 2> {output} '
-
-rule run_repeatmasker:
-    input: {REF},
-    output: 'repeatmasker.log',
-    shell: 'RepeatMasker {input} 2> {output}'
