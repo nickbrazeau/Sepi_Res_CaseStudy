@@ -1,0 +1,93 @@
+---
+title: "CGE Tools Summary"
+author: "Nicholas F. Brazeau"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output:
+  rmarkdown::html_document:
+    highlight: textmate
+    theme: lumen
+    toc: true
+    code_folding: hide
+editor_options: 
+  chunk_output_type: console
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = F, warning = F, fig.width = 10, fig.height = 7)
+#............
+# imports
+#..........
+library(tidyverse)
+library(DT)
+
+
+mtdt <- readr::read_tsv(file = "~/Documents/GitHub/Sepidermidis_resistance_hosp/metadata.tab.txt") %>% 
+  magrittr::set_colnames(tolower(colnames(.))) %>% 
+  dplyr::mutate(collectiondate = lubridate::mdy(collectiondate)) %>% 
+  dplyr::arrange(collectiondate)
+```
+
+# Overall
+```{r}
+paths <- dir(path = "~/Documents/MountPoints/mountedMeshnick/Projects/Sepidermidis_resistance_hosp/CGEtools/", pattern = "sepi", full.names = T)
+paths <- paths[!grepl(".txt", paths)] # I created this via snakemake
+
+read_cge <- function(path){
+  ret <- read_tsv(paste0(path, "/out.tsv")) %>% 
+    dplyr::select(-c("contigs_file", "salmonella_type", "plasmids", "pmlsts", "cgst")) %>% 
+    dplyr::mutate(smpl = basename(path),
+                  smpl = stringr::str_split_fixed(smpl, "_", n=2)[,1]) %>% 
+    dplyr::select(c("smpl", dplyr::everything()))
+    
+}
+
+mtdt_sub <- mtdt %>% 
+  dplyr::mutate(smpl = paste0("sepi", number)) %>% 
+  dplyr::select(c("smpl", "collectiondate"))
+                  
+
+lapply(paths, read_cge) %>% 
+  dplyr::bind_rows(.) %>% 
+  dplyr::left_join(mtdt_sub, .) %>% 
+  dplyr::arrange(collectiondate) %>% 
+  DT::datatable(., extensions = 'Buttons', options = list(dom = 'Bfrtip',buttons = c('csv'), pageLength=20))
+  
+```
+
+
+## PlasmidFinder
+Hit a bug when it was trying to do `pMSLT` -- think it is fine since we really care about the plasmids. Ran locally on my computer. 
+
+**Needs to be cleaned up from JSON format to more human readable**.
+```{r}
+library(jsonlite)
+
+
+
+
+plsmddirs <- dir(path = "~/Documents/GitHub/Sepidermidis_resistance_hosp/plasmidfinder/fastq/", 
+                 pattern = "sepi", full.names = T)
+plsmddirs <- plsmddirs[!grepl("\\.", plsmddirs)] 
+plsmdpaths <- paste0(plsmddirs, "/data.json")
+
+read_plasmidfinder <- function(path){
+  ret <- as.data.frame(jsonlite::fromJSON(txt = readLines(path)) )
+  return(ret)
+}
+
+plsmdfinder <- lapply(plsmdpaths, read_plasmidfinder) %>% 
+  dplyr::bind_rows()
+
+mtdt_sub <- mtdt %>% 
+  dplyr::mutate(smpl = paste0("sepi", number)) %>% 
+  dplyr::select(c("smpl", "collectiondate"))
+                  
+
+plsmdfinder %>% 
+  DT::datatable(., extensions = 'Buttons', options = list(dom = 'Bfrtip',buttons = c('csv'), pageLength=20))
+  
+```
+
+
+
