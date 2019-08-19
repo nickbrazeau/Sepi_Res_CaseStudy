@@ -27,8 +27,8 @@ DBPATH='/proj/ideel/resources/BacterialDatabases_CGE/'
 
 
 rule all:
-#	input: expand(OUT_PATH + '{fastq}' + "/" + '{fastq}' + '.setup.txt', fastq = FASTQS)
-	input: expand(OUT_PATH + '{fastq}' + '.txt', fastq = FASTQS)
+	input: expand(OUT_PATH + '{fastq}' + "/" + '{fastq}' + '.setup.txt', fastq = FASTQS)
+#	input: expand(OUT_PATH + '{fastq}' + '.txt', fastq = FASTQS)
 
 
 

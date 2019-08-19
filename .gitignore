@@ -1,6 +1,9 @@
 
 # files for sequencing/seq data
 symlinks/
+plasmidfinder_tools/plasmidfinder/fastq/
+smoothlumpy/bams/
+
 
 # files from slurm system
 *log
@@ -8,3 +11,9 @@ symlinks/
 
 # files from CGE output
 */Sepi*/
+
+# large files not needed to push
+*fasta
+
+# silly mac
+.DS_Store
