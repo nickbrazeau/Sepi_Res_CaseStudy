@@ -81,9 +81,8 @@ rule select_snps :
 	output: 'variants/{ProjName}_HaploCaller_joint.snp.vcf'
 	shell: 'gatk --java-options "-Xmx4g -Xms4g" SelectVariants \
 		-R {REF} -V {input} --output {output} \
-		-selectType SNP \
-		-selectType MNP'
-
+		--select-type-to-include SNP \
+		--select-type-to-include MNP'
 
 
 rule genotype_GVCFs:
