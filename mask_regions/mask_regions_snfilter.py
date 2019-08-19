@@ -27,7 +27,10 @@ ProjName = 'Sepi_Res_CaseStudy'
 
 rule all:
 #    input: "nucmer/nucmer.log"
-     input: "Sepi_Res_CaseStudy.coords"
+#     input: "Sepi_Res_CaseStudy.coords"
+    input: 'Sepi_Res_CaseStudy.exactrepeats'
+#    input: 'Sepi_Res_CaseStudy.tandemrepeats'
+
 
 
 ##########################################################################################
