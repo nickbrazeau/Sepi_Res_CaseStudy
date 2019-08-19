@@ -51,7 +51,7 @@ rule get_exact_repeats:
 rule get_coords_from_nucmer:
     input: "Sepi_Res_CaseStudy.delta"
     output: "Sepi_Res_CaseStudy.coords"
-    shell: "show-coords -r -B {input} > {output}"
+    shell: "show-coords -r -T {input} > {output}"
 
 rule run_nucmer:
     output: "nucmer/nucmer.log"
