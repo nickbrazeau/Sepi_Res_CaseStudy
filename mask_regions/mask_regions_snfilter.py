@@ -28,8 +28,8 @@ ProjName = 'Sepi_Res_CaseStudy'
 rule all:
 #    input: "nucmer/nucmer.log"
 #     input: "Sepi_Res_CaseStudy.coords"
-    input: 'Sepi_Res_CaseStudy.exactrepeats'
-#    input: 'Sepi_Res_CaseStudy.tandemrepeats'
+#    input: 'Sepi_Res_CaseStudy.exactrepeats'
+    input: 'Sepi_Res_CaseStudy.tandemrepeats'
 
 
 
@@ -39,12 +39,12 @@ rule all:
 
 rule get_tandem_repeats:
     output: 'Sepi_Res_CaseStudy.tandemrepeats'
-    shell: 'exact-tandems {REF} 25 > {output}'
+    shell: 'exact-tandems {REF} 10 > {output}'
 
 
 rule get_exact_repeats:
     output: 'Sepi_Res_CaseStudy.exactrepeats'
-    shell: 'repeat-match -n 25 {REF} > {output}'
+    shell: 'repeat-match -n 10 {REF} > {output}'
 
 
 # http://mummer.sourceforge.net/manual/#identifyingrepeats
