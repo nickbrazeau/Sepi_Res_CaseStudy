@@ -76,7 +76,7 @@ rule filter_variants :
 		--output {output}'
 
 
-rule select_variants :
+rule select_snps :
 	input: 'variants/{ProjName}_HaploCaller_joint.raw.vcf'
 	output: 'variants/{ProjName}_HaploCaller_joint.snp.vcf'
 	shell: 'gatk --java-options "-Xmx4g -Xms4g" SelectVariants \
