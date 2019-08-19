@@ -39,12 +39,12 @@ rule all:
 
 rule get_tandem_repeats:
     output: 'Sepi_Res_CaseStudy.tandemrepeats'
-    shell: 'exact-tandems {REF} 10 > {output}'
+    shell: 'exact-tandems {REF} 25 > {output}'
 
 
 rule get_exact_repeats:
     output: 'Sepi_Res_CaseStudy.exactrepeats'
-    shell: 'repeat-match -n 10 {REF} > {output}'
+    shell: 'repeat-match -n 25 {REF} > {output}'
 
 
 # http://mummer.sourceforge.net/manual/#identifyingrepeats
