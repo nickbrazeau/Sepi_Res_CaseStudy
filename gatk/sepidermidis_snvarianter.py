@@ -64,7 +64,7 @@ rule select_variants :
 		-select "vc.isNotFiltered()"'
 
 rule filter_variants :
-	input: 'variants/{ProjName}_HaploCaller_joint.snp.vcf'
+	input: 'variants/{ProjName}_HaploCaller_joint.raw.vcf'
 	output: 'variants/{ProjName}_HaploCaller_joint.qual.vcf'
 	shell: 'gatk --java-options "-Xmx4g -Xms4g" VariantFiltration \
 		-R {REF} \
@@ -74,15 +74,6 @@ rule filter_variants :
 		--filter-expression "SOR > 2.0" \
 		--filter-name "SOR" \
 		--output {output}'
-
-
-rule select_snps :
-	input: 'variants/{ProjName}_HaploCaller_joint.raw.vcf'
-	output: 'variants/{ProjName}_HaploCaller_joint.snp.vcf'
-	shell: 'gatk --java-options "-Xmx4g -Xms4g" SelectVariants \
-		-R {REF} -V {input} --output {output} \
-		--select-type-to-include SNP \
-		--select-type-to-include MNP'
 
 
 rule genotype_GVCFs:
