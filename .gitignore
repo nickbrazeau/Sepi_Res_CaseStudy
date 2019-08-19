@@ -12,8 +12,18 @@ smoothlumpy/bams/
 # files from CGE output
 */Sepi*/
 
+# snakemake files
+plasmidfinder_tools/.snakemake/*
+CGEtools_noplasmidfinder/.snakemake/*
+
 # large files not needed to push
 *fasta
+
+# ignore git and objs in plasmidfinder docker
+plasmidfinder_tools/kma/*
+plasmidfinder_tools/plasmidfinderdb/*
+plasmidfinder_tools/plasmidfinder/README.md
+test/*
 
 # silly mac
 .DS_Store
