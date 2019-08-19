@@ -11,4 +11,9 @@ you will need to run the two "pipelines" below:
 
 
 
-### Dependencies 
+### Dependencies
+
+* Bullet 1
+* Bullet 2
+  * Bullet 2a
+  * Bullet 2b

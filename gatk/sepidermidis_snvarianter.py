@@ -30,8 +30,8 @@ ProjName = 'Sepi_Res_CaseStudy'
 
 rule all:
 #	input: expand('variants/{sample}_HaploCaller.raw.g.vcf', sample = SAMPLES)
-	input: expand('variants/{ProjName}_HaploCaller_joint.raw.vcf', ProjName = ProjName)
-#	input: expand('variants/{ProjName}_HaploCaller_joint.ann.vcf', ProjName = ProjName)
+#	input: expand('variants/{ProjName}_HaploCaller_joint.raw.vcf', ProjName = ProjName)
+	input: expand('variants/{ProjName}_HaploCaller_joint.ann.vcf', ProjName = ProjName)
 
 
 
@@ -44,7 +44,7 @@ rule Annotate_POP_SNPeffvariants:
 	input: vcf = 'variants/{ProjName}_HaploCaller_joint.pass.vcf',
 	       snpeff='variants/{ProjName}_HaploCaller_joint.SnpEff.vcf'
 	output: 'variants/{ProjName}_HaploCaller_joint.ann.vcf'
-	shell: 'gatk --java-options "-Xmx4g -Xms4g" VariantAnnotator \
+	shell: 'java -jar /nas/longleaf/apps/gatk/3.8-0/GenomeAnalysisTK.jar -T VariantAnnotator \
 		-R {REF} \
 		-A SnpEff \
 		-V {input.vcf} \
@@ -60,7 +60,7 @@ rule select_variants :
 	input: 'variants/{ProjName}_HaploCaller_joint.qual.vcf'
 	output: 'variants/{ProjName}_HaploCaller_joint.pass.vcf'
 	shell: 'gatk --java-options "-Xmx4g -Xms4g" SelectVariants \
-		-R {REF} -V {input} -o {output} \
+		-R {REF} -V {input} --output {output} \
 		-select "vc.isNotFiltered()"'
 
 rule filter_variants :
@@ -69,12 +69,11 @@ rule filter_variants :
 	shell: 'gatk --java-options "-Xmx4g -Xms4g" VariantFiltration \
 		-R {REF} \
 		-V {input} \
-		--filterExpression "MQ < 55.0" \
-		--filterName "MQ" \
-		--filterExpression "SOR > 2.0" \
-		--filterName "SOR" \
-		--logging_level ERROR \
-		-o {output}'
+		--filter-expression "MQ < 55.0" \
+		--filter-name "MQ" \
+		--filter-expression "SOR > 2.0" \
+		--filter-name "SOR" \
+		--output {output}'
 
 rule genotype_GVCFs:
 	input: 'variants/{ProjName}_HaploCaller_joint.combined.g.vcf'
@@ -82,7 +81,7 @@ rule genotype_GVCFs:
 	shell: 'gatk --java-options "-Xmx4g -Xms4g" GenotypeGVCFs \
 		    -R {REF} \
 		    --variant {input} \
-		    -O {output}'
+		    --output {output}'
 
 
 rule combine_gvcfs:
@@ -91,7 +90,7 @@ rule combine_gvcfs:
 	shell: 'gatk --java-options "-Xmx4g -Xms4g" CombineGVCFs \
 		    -R {REF} \
 		    --variant {input} \
-		    -O {output}'
+		    --output {output}'
 
 
 
@@ -117,7 +116,7 @@ rule haplotype_caller:
 		-R {REF} -I {input} \
 		-ploidy 1 \
 		-ERC GVCF \
-		-O {output} '
+		--output {output} '
 
 #--stand_call_conf 30 \
 # This is The minimum phred-scaled confidence threshold at which variants should be called
