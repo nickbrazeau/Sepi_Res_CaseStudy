@@ -42,7 +42,7 @@ rule all:
 ##########################################################################################
 rule Annotate_POP_SNPeffvariants:
 	input: vcf = 'variants/{ProjName}_HaploCaller_joint.pass.vcf',
-	       snpeff='variants/{ProjName}_HaploCaller_joint.SnpEff.vcf'
+	       snpeff='variants/{ProjName}_HaploCaller_joint.snpEff.vcf'
 	output: 'variants/{ProjName}_HaploCaller_joint.ann.vcf'
 	shell: 'java -jar /nas/longleaf/apps/gatk/3.8-0/GenomeAnalysisTK.jar -T VariantAnnotator \
 		-R {REF} \
@@ -53,7 +53,7 @@ rule Annotate_POP_SNPeffvariants:
 
 rule snpEff_Pop_variants:
 	input: vcf = 'variants/{ProjName}_HaploCaller_joint.pass.vcf'
-	output: 'variants/{ProjName}_HaploCaller_joint.SnpEff.vcf'
+	output: 'variants/{ProjName}_HaploCaller_joint.snpEff.vcf'
 	shell: 'snpEff -v -o gatk Staphylococcus_epidermidis_atcc_12228 {input.vcf} > {output}'
 
 rule select_variants :
@@ -64,7 +64,7 @@ rule select_variants :
 		-select "vc.isNotFiltered()"'
 
 rule filter_variants :
-	input: 'variants/{ProjName}_HaploCaller_joint.raw.vcf'
+	input: 'variants/{ProjName}_HaploCaller_joint.snp.vcf'
 	output: 'variants/{ProjName}_HaploCaller_joint.qual.vcf'
 	shell: 'gatk --java-options "-Xmx4g -Xms4g" VariantFiltration \
 		-R {REF} \
@@ -74,6 +74,17 @@ rule filter_variants :
 		--filter-expression "SOR > 2.0" \
 		--filter-name "SOR" \
 		--output {output}'
+
+
+rule select_variants :
+	input: 'variants/{ProjName}_HaploCaller_joint.raw.vcf'
+	output: 'variants/{ProjName}_HaploCaller_joint.snp.vcf'
+	shell: 'gatk --java-options "-Xmx4g -Xms4g" SelectVariants \
+		-R {REF} -V {input} --output {output} \
+		-selectType SNP \
+		-selectType MNP'
+
+
 
 rule genotype_GVCFs:
 	input: 'variants/{ProjName}_HaploCaller_joint.combined.g.vcf'
