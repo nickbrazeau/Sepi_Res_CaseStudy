@@ -27,10 +27,11 @@ library(grid)
 library(DT)
 remotes::install_github("IDEELResearch/vcfRmanip", ref = "bb2c1976adddffcde7d088252ea0f0e6a3c2ceb8")
 library(vcfRmanip)
-source("~/Documents/GitHub/Sepi_Res_CaseStudy/Ranalysis/R/00-basic_vcf_manipulations.R")
+source("~/Documents/GitHub/Sepi_Res_CaseStudy/analyze_sepi_cc/R/00-basic_vcf_manipulations.R")
 
 
 # VCF IMPORT
+rawvcf <- vcfR::read.vcfR("~/Documents/MountPoints/mountedScratchLL/Projects/Sepi_Res_CaseStudy/variants/Sepi_Res_CaseStudy_HaploCaller_joint.raw.vcf", verbose = F)
 qcvcf <- vcfR::read.vcfR("~/Documents/MountPoints/mountedScratchLL/Projects/Sepi_Res_CaseStudy/variants/Sepi_Res_CaseStudy_HaploCaller_joint.ann.vcf", verbose = F)
 
 ```
@@ -53,15 +54,18 @@ Over their course of treatment, a patient developed multi-drug resistant _S. epi
 
 
 
-Overall, this VCF contains `r nrow(qcvcf@gt)` variants across `r (ncol(qcvcf@gt)-1)` samples. These are variants relative to the reference sequence and do not represent segregating sites.
 
-## Raw SNP & INDEL Sites
-There are `r paste0(sum(is.biallelic(extract.indels(qcvcf, return.indels=F))), "/", nrow(extract.indels(qcvcf, return.indels=F)@gt))` SNPs that were identified by the `gatk` pipeline.    
-There are `r paste0(sum(is.biallelic(extract.indels(qcvcf, return.indels=T))), "/", nrow(extract.indels(qcvcf, return.indels=T)@gt))` INDELs that were identified by the `gatk` pipeline.    
-**Hereafter, I have subsetted to SNPs**. INDELs will be analyzed in a separate script with `smoove`. 
+## Raw SNP & MNP Sites by `GATK`
+Overall, there are `r nrow(extract.indels(qcvcf, return.indels=F)@gt)` sites that are nucleotide polymorphisms. Of these, there are `r paste0(sum(is.biallelic(extract.indels(qcvcf, return.indels=F))), "/", nrow(extract.indels(qcvcf, return.indels=F)@gt))` biallelic M/SNPs.   
+Overall, there are `r nrow(extract.indels(qcvcf, return.indels=T)@gt)` (short) INDELs.
+ 
+**Note, `gatk happlotypecaller` is optimized for short variant discovery**. SVs will be analyzed in a separate script with `smoove`. 
 
 ```{r}
+
+indelvcf <- vcfR::extract.indels(rawvcf, return.indels = T)
 snpvcf <- vcfR::extract.indels(qcvcf, return.indels = F)
+
 ```
 
 # Variant Filtration
@@ -76,8 +80,8 @@ Plan for Variant Filtration:
 ## Masking Repeat Regions
 ```{r}
 # http://mummer.sourceforge.net/manual/#coords
-
-ncmer <- readr::read_tsv("~/Documents/MountPoints/mountedScratchLL/Projects/Sepi_Res_CaseStudy/Sepi_Res_CaseStudy.coords",
+# note, although we can also find exact matches and tandem repeats, we are going to assume that the inexact repeats at >90% should capture all of these regions
+ncmer <- readr::read_tsv("~/Documents/MountPoints/mountedScratchLL/Projects/Sepi_Res_CaseStudy/nucmer/Sepi_Res_CaseStudy.coords",
                           skip = 3)  %>% 
   magrittr::set_colnames(c("s1", "e1", "s2", "e2", "len1", "len2", "identity", "tag"))
 
@@ -101,19 +105,19 @@ repeatregions <- data.frame( start = unlist(ncmer[,c("s1", "s2")]) , end = unlis
 ```
 
 
-## Masking Structural Variant Regions
-*First read in INDELs identifed by `smoove` 
+## Masking Large Structural Variant Regions
+*First read in raw SV identifed by `smoove` and mask those*. 
 
 ```{r}
 
-lmpy <- vcfR::read.vcfR(file = "~/Documents/GitHub/Sepidermidis_resistance_hosp/lumpy/bamrefs/sepi_clincases-smoove.genotyped.vcf.gz")
+lmpy <- vcfR::read.vcfR(file = "~/Documents/GitHub/Sepi_Res_CaseStudy/smoothlumpy/bams/sepi_clincases-smoove.genotyped.vcf.gz")
 
 
 indels.lmpy.regions <- vcfR::getFIX(lmpy, getINFO = T) %>% 
-  as.tibble(.) %>% 
+  tibble::as_tibble(.) %>% 
   dplyr::select(c("CHROM", "POS", "ALT", "INFO")) %>% 
-  dplyr::filter(ALT %in% c("<DEL>", "<DUP>", "<INV>")) %>% 
-  dplyr::mutate(end = stringr::str_split_fixed(INFO, ";", n=14)[,3],
+  dplyr::filter(ALT %in% c("<DUP>", "<DEL>", "<INS>", "<INV>")) %>% # excluding BND which don't have clean end
+  dplyr::mutate(end = stringr::str_split_fixed(INFO, ";", n=13)[,3],
                 end = gsub(pattern = "END=", "", x = end),
                 end = as.numeric(end),
                 start = as.numeric(POS),
@@ -161,8 +165,8 @@ mskrgns <- dplyr::bind_rows(repeatregions, indels.lmpy.regions, tranls.lmpy.regi
   ) 
 
 
-snpvcf.masked <- vcfRmanip::vcffilter_ChromPos(vcfRobject = snpvcf,
-                                               chromposbed = mskrgns)
+qcvcf.masked <- vcfRmanip::vcffilter_ChromPos(vcfRobject = qcvcf,
+                                              chromposbed = mskrgns)
 
 
 ```
@@ -174,7 +178,7 @@ Given that a lot of the variation seems to be due to differences from the refere
 First we will look at this filtering based on the GT calls. Going to drop loci that have more than 3/8 samples missing. 
 ```{r}
 
-snpvcf.masked.seg <- vcfRmanip::vcfR2segsites_gt(snpvcf.masked)
+qcvcf.masked.seg <- vcfRmanip::vcfR2segsites_gt(qcvcf.masked)
 
 
 ```
@@ -185,8 +189,8 @@ Overall, we have `r nrow(snpvcf.masked.seg@fix)` segregating sites that passes o
 ```{r}
 # will write this vcf out for analysis
 
-saveRDS(object = snpvcf.masked.seg, file = "~/Documents/GitHub/Sepidermidis_resistance_hosp/Ranalysis/data/Sepi_QC_variantfile.RDS")
-saveRDS(object = repeatregions, file = "~/Documents/GitHub/Sepidermidis_resistance_hosp/Ranalysis/data/repeat_regions.RDS")
+saveRDS(object = qcvcf.masked.seg, file = "~/Documents/GitHub/Sepi_Res_CaseStudy/analyze_sepi_cc/data/Sepi_QC_variantfile.RDS")
+saveRDS(object = repeatregions, file = "~/Documents/GitHub/Sepi_Res_CaseStudy/analyze_sepi_cc/data/repeat_regions.RDS")
 
 
 ```

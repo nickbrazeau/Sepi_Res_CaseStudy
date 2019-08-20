@@ -121,7 +121,7 @@ gridExtra::grid.arrange(grobs = grobs, layout_matrix = rbind(c(1),
                         )
 
 
-jpeg(paste0("~/Documents/GitHub/Sepi_Res_CaseStudy/Ranalysis/figures/SFig1-Genomic_Coverage.jpg"), units = "in", width = 8, height = 11, res = 200)
+jpeg(paste0("~/Documents/GitHub/Sepi_Res_CaseStudy/analyze_sepi_cc/figures/SFig1-Genomic_Coverage.jpg"), units = "in", width = 8, height = 11, res = 200)
 gridExtra::grid.arrange(grobs = grobs, layout_matrix = rbind(c(1),
                                                              c(1),
                                                              c(2)
@@ -153,6 +153,6 @@ do.call("rbind.data.frame", purrr::map(purrr::map(bamcovs, "windowcov"), "window
 
 ```{r}
 
-saveRDS(bamcovs, file = "~/Documents/GitHub/Sepi_Res_CaseStudy/Ranalysis/data/Sepi_coverage.RDS")
+saveRDS(bamcovs, file = "~/Documents/GitHub/Sepi_Res_CaseStudy/analyze_sepi_cc/data/Sepi_coverage.RDS")
 
 ```

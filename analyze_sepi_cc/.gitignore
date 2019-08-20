@@ -1,7 +1,9 @@
 # History files
 .Rhistory
 .Rapp.history
+.Rproj.user/
 .Rproj.user
+analyze_sepi_cc.Rproj
 
 # Session Data files
 .RData

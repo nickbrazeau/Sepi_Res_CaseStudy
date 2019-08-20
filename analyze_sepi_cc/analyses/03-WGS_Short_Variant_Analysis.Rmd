@@ -32,11 +32,7 @@ source("~/Documents/GitHub/Sepidermidis_resistance_hosp/Ranalysis/R/00-basic_vcf
 
 # VCF IMPORT
 qcvcf <- readRDS(file = "~/Documents/GitHub/Sepidermidis_resistance_hosp/Ranalysis/data/Sepi_QC_variantfile.RDS")
-# mtdt
-mtdt <- readr::read_tsv(file = "~/Documents/GitHub/Sepidermidis_resistance_hosp/metadata.tab.txt") %>% 
-  magrittr::set_colnames(tolower(colnames(.))) %>% 
-  dplyr::mutate(collectiondate = lubridate::mdy(collectiondate)) %>% 
-  dplyr::arrange(collectiondate)
+
 ```
 
 # Background

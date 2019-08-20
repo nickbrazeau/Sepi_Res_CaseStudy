@@ -19,9 +19,10 @@ you will need to run the two "pipelines" below:
 * `Picard Tools` version 2.20.3
 * `bedtools` version 2.28.0
 * `GATK` version 4.0.3.0
-* `GATK` version 3.8.0 (For `CallableLoci` tool)
+* `GATK` version 3.8.0 (For the `CallableLoci` and `VariantAnnotator` tools)
 * `snpEFF` version 4.3t
-* `smoove` TODO 
+* `smoove` version 0.2.3
+* `bcftools` version 1.9
 * [CGE Tools Pipeline Docker Image](https://bitbucket.org/genomicepidemiology/cge-tools-docker/src/master/)
 * Item
    * Mixed  
