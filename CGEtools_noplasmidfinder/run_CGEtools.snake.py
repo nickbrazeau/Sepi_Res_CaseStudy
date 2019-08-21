@@ -38,9 +38,14 @@ rule run_cge_pipeline:
 	output: path = OUT_PATH + '{fastq}', summ = OUT_PATH + '{fastq}' + '.txt',
 	shell: 'singularity exec -B /proj/ -B /pine/scr/n/f/nfb/ -B {DBPATH}:/cgetmp/databases \
 			{SIMG_PATH} bash -c "export CGEPIPELINE_DB=/cgetmp/databases; \
-			cd {output.path}; BAP --services KmerFinder,MLST,ResFinder,VirulenceFinder,SalmonellaTypeFinder,cgMLSTFinder \
+			cd {output.path}; BAP --services KmerFinder,MLST,ResFinder \
 			--fq1 {input.fq1} --fq2 {input.fq2}  --Asp Illumina --Ast paired" \
 			; echo "sample complete" > {output.summ}'
+# Note, as of 8/21/19, VirulenceFinder only supports:
+# Listeria, S. aureus, E. coli, enterococcus (e.g. no staph epi, so BAP won't run it)
+# Note, as of 8/21/19 cgMLSTFinder only supports:
+# Campylobacter, clostridium, E. coli, Listeria, Salmonella, Yersinia (e.g. gram-negs)
+# no, staph epi to consider, dropping
 
 rule setup_output_dir_for_singularity:
 	output: summ = OUT_PATH + '{fastq}' + "/" + '{fastq}' + '.setup.txt',
