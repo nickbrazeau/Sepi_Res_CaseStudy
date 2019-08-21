@@ -22,7 +22,17 @@ SAMPLES, = glob_wildcards(bamrefdir + '{sample}.bam')
 rule all:
 #	input: 'smoothcaller.log'
 #	input: 'sepi_clincases-smoove.genotyped.dupdel.pass.vcf.gz'
-	input: 'sepi_clincases-smoove.genotyped.bndinv.pass.vcf.gz'
+#	input: 'sepi_clincases-smoove.genotyped.bndinv.pass.vcf.gz'
+	input: 'sepi_clincases-smoove.genotyped.pass.vcf.gz'
+
+
+rule combine_filtered_vcfs:
+	input: dupdel = 'sepi_clincases-smoove.genotyped.dupdel.pass.vcf.gz',
+			bndinv = 'sepi_clincases-smoove.genotyped.bndinv.pass.vcf.gz'
+	output: 'sepi_clincases-smoove.genotyped.pass.vcf.gz'
+	shell: 'bcftools concat {input.dupdel} {input.bndinv} | \
+			bcftools sort - | \
+			gzip -c > {output}'
 
 rule filter_smooth_vcf_for_bndinv:
 	input: 'sepi_clincases-smoove.genotyped.vcf.gz'
