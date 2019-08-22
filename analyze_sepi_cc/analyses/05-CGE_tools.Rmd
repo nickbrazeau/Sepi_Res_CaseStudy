@@ -21,73 +21,140 @@ knitr::opts_chunk$set(echo = TRUE, message = F, warning = F, fig.width = 10, fig
 library(tidyverse)
 library(DT)
 
-
-mtdt <- readr::read_tsv(file = "~/Documents/GitHub/Sepidermidis_resistance_hosp/metadata.tab.txt") %>% 
-  magrittr::set_colnames(tolower(colnames(.))) %>% 
-  dplyr::mutate(collectiondate = lubridate::mdy(collectiondate)) %>% 
-  dplyr::arrange(collectiondate)
 ```
 
-# Overall
+# Goal 
+**Overall**: To detect putative drug resistance mutation(s) in clinical isolates of _S. epidermidis_ from a patient with phenotypic resistance.   
+**Immediate**: Use the CGE BAP (using plasmid finder seperately due to build issues) to determine change in virulence/plasmid factors
+
 ```{r}
-paths <- dir(path = "~/Documents/MountPoints/mountedMeshnick/Projects/Sepidermidis_resistance_hosp/CGEtools/", pattern = "sepi", full.names = T)
-paths <- paths[!grepl(".txt", paths)] # I created this via snakemake
+
+smplvls <- c("Sepi01", "Sepi02", "Sepi03", "Sepi04", "Sepi05a", "Sepi05b", "Sepi06", "Sepi07")
+
+paths <- dir(path = "~/Documents/MountPoints/mountedMeshnick/Projects/Sepi_Res_CaseStudy/CGEtools_noplasmidfinder/", pattern = "Sepi", full.names = T)
+paths <- paths[!grepl(".out", paths)] # I created this via snakemake
 
 read_cge <- function(path){
   ret <- read_tsv(paste0(path, "/out.tsv")) %>% 
-    dplyr::select(-c("contigs_file", "salmonella_type", "plasmids", "pmlsts", "cgst")) %>% 
     dplyr::mutate(smpl = basename(path),
                   smpl = stringr::str_split_fixed(smpl, "_", n=2)[,1]) %>% 
     dplyr::select(c("smpl", dplyr::everything()))
     
 }
 
-mtdt_sub <- mtdt %>% 
-  dplyr::mutate(smpl = paste0("sepi", number)) %>% 
-  dplyr::select(c("smpl", "collectiondate"))
-                  
 
-lapply(paths, read_cge) %>% 
+
+cgetable <- lapply(paths, read_cge) %>% 
   dplyr::bind_rows(.) %>% 
-  dplyr::left_join(mtdt_sub, .) %>% 
-  dplyr::arrange(collectiondate) %>% 
-  DT::datatable(., extensions = 'Buttons', options = list(dom = 'Bfrtip',buttons = c('csv'), pageLength=20))
+  dplyr::mutate(smpl = factor(smpl, levels = smplvls)) %>% 
+  dplyr::arrange(smpl) %>% 
+  dplyr::select(c("smpl", "genome_size", "contigs", "n50", 
+"species", "mlst", "mlst_genes", "resistance_genes")) # CGE provides data for all, even though I didn't ask for some of these modules 
+
+
+
+# the order is inconsistent among the mlst genes, going to reorder
+# https://stackoverflow.com/questions/2403122/regular-expression-to-extract-text-between-square-brackets
+
+cgetable.fx <- cgetable %>% 
+  dplyr::mutate(
+    mlst_genes = stringr::str_extract(mlst_genes, "(?<=\\[).+?(?=\\])") 
+    ) 
+
+sortgenes <- function(genes){
+  go <- unlist( stringr::str_split(string = genes, pattern = ",") )
+  go <- sort(go)
+  go <- paste(go, collapse = ", ")
+  return(go)
+}
+
+cgetable.fx$mlst_genes <- sapply(cgetable.fx$mlst_genes, sortgenes)
+cgetable.fx$resistance_genes <- sapply(cgetable.fx$resistance_genes, sortgenes)
+
+```
+
+```{r, results='asis'}
+DT::datatable(cgetable.fx, extensions = 'Buttons', 
+              options = list(dom = 'Bfrtip',buttons = c('csv'), pageLength=8))
   
 ```
 
 
 ## PlasmidFinder
-Hit a bug when it was trying to do `pMSLT` -- think it is fine since we really care about the plasmids. Ran locally on my computer. 
+The original `CGEtools BAP` on our cluster was hitting a bug when going through plasmidfinder. Cloned locally and ran the docker there. 
 
-**Needs to be cleaned up from JSON format to more human readable**.
 ```{r}
 library(jsonlite)
 
-
-
-
-plsmddirs <- dir(path = "~/Documents/GitHub/Sepidermidis_resistance_hosp/plasmidfinder/fastq/", 
-                 pattern = "sepi", full.names = T)
+plsmddirs <- dir(path = "~/Documents/GitHub/Sepi_Res_CaseStudy/plasmidfinder_tools/plasmidfinder/fastq/", 
+                 pattern = "Sepi", full.names = T)
 plsmddirs <- plsmddirs[!grepl("\\.", plsmddirs)] 
 plsmdpaths <- paste0(plsmddirs, "/data.json")
 
+# name these for list later
+names(plsmdpaths) <- stringr::str_extract(plsmdpaths, "(?<=fastq//).+?(?=\\_)")
+
 read_plasmidfinder <- function(path){
-  ret <- as.data.frame(jsonlite::fromJSON(txt = readLines(path)) )
+  ret <- jsonlite::fromJSON(txt = readLines(path)) 
+  # handle list structure -- obviously not exportable
+  ret <- ret$plasmidfinder$results$`Gram Positive`$gram_positive
+  ret <- lapply(ret, as.data.frame) %>% 
+    bind_rows(., .id = "name")
+  
   return(ret)
 }
 
 plsmdfinder <- lapply(plsmdpaths, read_plasmidfinder) %>% 
-  dplyr::bind_rows()
+  dplyr::bind_rows(., .id = "smpl")
 
-mtdt_sub <- mtdt %>% 
-  dplyr::mutate(smpl = paste0("sepi", number)) %>% 
-  dplyr::select(c("smpl", "collectiondate"))
-                  
+
 
 plsmdfinder %>% 
   DT::datatable(., extensions = 'Buttons', options = list(dom = 'Bfrtip',buttons = c('csv'), pageLength=20))
   
 ```
+
+
+### Combine Tables for Cleaner Output
+Going to drop some of the information from plasmidfinder, and just keep the plasmids that it identified in the final column.
+```{r}
+
+plasmids <- plsmdfinder %>% 
+  dplyr::group_by(smpl) %>% 
+  dplyr::select(c("smpl", "plasmid", "note")) %>%
+  dplyr::mutate(plasmidnote = paste0(plasmid, "-", note)) %>% 
+  dplyr::select(c("smpl", "plasmidnote")) %>% 
+  tidyr::nest() 
+
+plasmids$plasmids <- purrr::map(plasmids$data, function(x){ 
+  ret <- unlist(x)
+  ret <- sort(ret)
+  ret <- paste(ret, collapse = ", ")
+  return(ret)
+  })
+
+cgetable.fx.plasmids <- plasmids %>% 
+  dplyr::select(-c("data")) %>% 
+  dplyr::left_join(x = cgetable.fx, y = ., by = "smpl") 
+
+
+
+
+DT::datatable(cgetable.fx.plasmids, 
+              extensions = 'Buttons', 
+              options = list(dom = 'Bfrtip',buttons = c('csv'), pageLength=20))
+  
+```
+
+```{r}
+save(cgetable.fx, 
+     plsmdfinder,
+     cgetable.fx.plasmids, 
+     file = "~/Documents/GitHub/Sepi_Res_CaseStudy/analyze_sepi_cc/data/derived_data/GEtools_table_outputs.RDA")
+
+```
+
+
 
 
 

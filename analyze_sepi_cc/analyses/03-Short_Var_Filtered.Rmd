@@ -1,0 +1,351 @@
+---
+title: "Whole Genome Single Nucleotide Variant Analysis among FILTERED data for Sepi Resistance"
+author: "Nicholas F. Brazeau"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output:
+  rmarkdown::html_document:
+    highlight: textmate
+    theme: lumen
+    toc: true
+    code_folding: hide
+editor_options: 
+  chunk_output_type: console
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = T, message = F, warning = F, results = 'hide', fig.width = 10, fig.height = 7)
+```
+
+```{r}
+#............
+# imports
+#..........
+library(vcfR)
+library(GenomicRanges)
+library(tidyverse)
+library(RColorBrewer)
+library(grid)
+library(DT)
+remotes::install_github("IDEELResearch/vcfRmanip")
+library(vcfRmanip)
+source("~/Documents/GitHub/Sepi_Res_CaseStudy/analyze_sepi_cc/R/00-basic_vcf_manipulations.R")
+
+# VCF IMPORT
+qcvcf <- vcfR::read.vcfR("~/Documents/MountPoints/mountedScratchLL/Projects/Sepi_Res_CaseStudy/variants/Sepi_Res_CaseStudy_HaploCaller_joint.ann.vcf", verbose = F)
+
+
+```
+
+# Goal 
+**Overall**: To detect putative drug resistance mutation(s) in clinical isolates of _S. epidermidis_ from a patient with phenotypic resistance.   
+**Immediate**: QC and Analysis of Segregating Sites and putative Drug-rx mutations on **FILTERED** VCF. In the previous script, we used the unfiltered WSAF to identify putative sites. Here, we will reduce our false discovery rate by using commonplace "filters" to mask regions that are error prone and variants that are low-quality.
+
+## Background
+Over their course of treatment, a patient developed multi-drug resistant _S. epidermidis_. We are attempting to identify putative drug resistance mutations in line with the phenotypic data. **The purpose of this script is to filter the QC-passed VCFS**. 
+
+ Thus far, I have done the following: 
+
+1. Aligned with `bwa-mem` with default parameters to fasta from [NCBI](https://www.ncbi.nlm.nih.gov/genome/155?genome_assembly_id=299299)
+2. Deduplicated and mate-fixed PE reads (python modules)
+3. Variant called with `gatk haplotype caller`
+4. Performed basic QC 
+4. Used the previously built variant annotation file from `snpEff` (*Staphylococcus_epidermidis_atcc_12228*)
+4. Filtered Variants with a MQ < 55 and SOR > 2
+   
+**Next, I am going to:***
+
+1. Mask regions that are within 50-bp of a low complexity region   
+2. Mask regions that are within 50-bp of a non-breakend structual variant  
+  
+_Of note, in this script, we will simply look at GT calls and no longer the WSAF_.  
+
+
+
+# Variant Filtration
+
+Plan for Variant Filtration: 
+
+1. Mask repetitive regions
+2. Mask SNV 10bp up- or downstream of an INDEL
+3. Subset to Segregating Sites 
+
+## Masking 
+### Masking Repeat Regions
+```{r}
+# http://mummer.sourceforge.net/manual/#identifyingrepeats
+# http://mummer.sourceforge.net/manual/#coords
+# note, although we can also find exact matches and tandem repeats, we are going to assume that the inexact repeats at >90% should capture all of these regions
+ncmer <- readr::read_tsv("~/Documents/MountPoints/mountedScratchLL/Projects/Sepi_Res_CaseStudy/nucmer/Sepi_Res_CaseStudy.coords",
+                          skip = 3)  %>% 
+  magrittr::set_colnames(c("s1", "e1", "s2", "e2", "len1", "len2", "identity", "tag"))
+
+# remove identical regions
+ncmer <- ncmer %>% 
+  dplyr::filter(s1 != s2 & e1 != e2) 
+
+# what is the distribution of identify and similarity
+summary(ncmer$identity); sd(ncmer$identity)
+
+ncmer <- ncmer %>% 
+  dplyr::filter(identity > 90) 
+
+# now collapse regions
+repeatregions <- data.frame( start = unlist(ncmer[,c("s1", "s2")]) , end = unlist(ncmer[, c("e1", "e2")]) ) %>% 
+  dplyr::mutate(start_orient = ifelse(start < end, start, end),
+                end_orient = ifelse(end < start, start, end))  %>% 
+  dplyr::select(c("start_orient", "end_orient")) %>% 
+  dplyr::filter(!duplicated(.)) 
+
+```
+
+
+### Masking Large Structural Variant Regions
+*First read in raw SV identifed by `smoove` and mask those sites as well*. 
+
+```{r}
+
+lmpy <- vcfR::read.vcfR(file = "~/Documents/GitHub/Sepi_Res_CaseStudy/smoothlumpy/bams/sepi_clincases-smoove.genotyped.vcf.gz")
+
+
+indels.lmpy.regions <- vcfR::getFIX(lmpy, getINFO = T) %>% 
+  tibble::as_tibble(.) %>% 
+  dplyr::select(c("CHROM", "POS", "ALT", "INFO")) %>% 
+  dplyr::filter(ALT %in% c("<DUP>", "<DEL>", "<INS>", "<INV>")) %>% # excluding BND which don't have clean end
+  dplyr::mutate(end = stringr::str_split_fixed(INFO, ";", n=13)[,3],
+                end = gsub(pattern = "END=", "", x = end),
+                end = as.numeric(end),
+                start = as.numeric(POS),
+                start_orient = ifelse(start < end, start, end),
+                end_orient = ifelse(end < start, start, end))  %>% 
+  dplyr::filter(!duplicated(.)) %>% 
+  dplyr::mutate(diff = end_orient - start_orient) %>%  # catch duplication events that are due to circular chomosomes
+  dplyr::filter(diff < 1e4) %>% 
+  dplyr::select(c("start_orient", "end_orient")) 
+
+
+```
+
+
+#### Combine Mask Regions
+```{r}
+ 
+bpbuffer <- 50
+
+mskrgns <- dplyr::bind_rows(repeatregions, indels.lmpy.regions) %>% 
+  dplyr::rename(start = start_orient,
+                end = end_orient) %>% 
+  dplyr::mutate(
+    seqname = "Chromosome",
+    geneid = 1:nrow(.),
+    start = start - bpbuffer,
+    end = end + bpbuffer 
+  ) 
+
+
+qcvcf.masked <- vcfRmanip::vcffilter_ChromPos(vcfRobject = qcvcf,
+                                              chromposbed = mskrgns)
+
+
+```
+
+
+
+### Segregating Sites by GT
+Now subset to segregating sites by GT. 
+```{r}
+
+qcvcf.masked.seg <- vcfRmanip::vcfR2segsites_gt(qcvcf.masked)
+
+```
+
+### Remove Singleton Sites by GT
+Remove sites that are only found in one sample. More likely to be a sequencing error and given that they are an "isolated" event, likely not associated with the differentiating DAP clinical phenotype.
+```{r}
+
+qcvcf.masked.seg.sing <- vcfRmanip::vcfR2removesingletons_gt(qcvcf.masked.seg)
+
+```
+
+
+## Find Interesting Sites
+Potential sites determined by scanning sensitive phenotypes for fixation at GT of 0 or 1 while the resistant phenotypes have GT fixed at 1 or 0, respectively. In other words, look for sites where the alleles among the sensitive and resistant phenotypes diverge based on the GT (versus the WSAF as before).
+
+#### Differentiating Sites
+```{r}
+qcvcf.masked.seg.gt <- vcfR::extract.gt(qcvcf.masked.seg, element = "GT")
+
+# looking for fixation
+highresdiff <- apply(qcvcf.masked.seg.gt, 1, function(x){
+  ret <- all( x[6:8]  == "1", na.rm = T) & # res pheno fixed at 1 
+    all(x[1:5] == "0", na.rm = T) # sens pheno fixed at 0
+  return(ret)
+})
+
+lowresdiff <- apply(qcvcf.masked.seg.gt, 1, function(x){
+  ret <- all( x[6:8] == "0", na.rm = T) & # res pheno fixed at 0 
+    all(x[1:5] == "1", na.rm = T) # sens pheno fixed at 1 
+  return(ret)
+})
+
+
+# get nice gtmatrix
+chrompos <- tibble::tibble(CHROM = vcfR::getCHROM(qcvcf.masked.seg),
+                           POS   = vcfR::getPOS(qcvcf.masked.seg))
+qcvcf.masked.seg.gt.chrompos <- cbind.data.frame(chrompos, qcvcf.masked.seg.gt)
+
+
+```
+
+```{r, results='asis'}
+
+intrstngsites <- rbind.data.frame(qcvcf.masked.seg.gt.chrompos[highresdiff, ],
+                                  qcvcf.masked.seg.gt.chrompos[lowresdiff, ]
+                                  )
+
+DT::datatable(intrstngsites, 
+              extensions = 'Buttons', 
+              options = list(dom = 'Bfrtip',buttons = c('csv'), 
+                             pageLength = 50))
+
+
+```
+
+### Visualize Seq Sites with Respect to Time
+
+```{r, results='asis'}
+
+
+#........................
+# Astericks
+#........................
+sites <- intrstngsites %>% 
+  dplyr::select(c("CHROM", "POS")) %>% 
+  dplyr::mutate(chrompos = paste0(CHROM, "_", POS)) %>% 
+  dplyr::select(chrompos) %>% 
+  dplyr::mutate(
+    label = "*",
+    height = 13.75 # 8 samples + 5 for donut hole
+  )
+
+
+
+
+#........................
+# Circos Plot
+#........................
+
+smplvls <- c("Sepi01", "Sepi02", "Sepi03", "Sepi04", "Sepi05a", "Sepi05b",  "Sepi06", "Sepi07")
+chromposlvls <- qcvcf.masked.seg.gt.chrompos %>% 
+  dplyr::arrange(., CHROM, POS) %>% 
+  dplyr::mutate(chrompos = paste0(CHROM, "_", POS)) %>% 
+  dplyr::select(chrompos) %>% 
+  unlist(.)
+
+
+
+qcvcf.masked.seg.gt.chrompos.long <- qcvcf.masked.seg.gt.chrompos %>% 
+  tidyr::gather(., key = "smpls", value = "GT", 3:ncol(.)) %>% 
+  dplyr::mutate(smpls_fct = factor(smpls, 
+                                   levels = smplvls),
+                smpls_num = as.numeric(smpls_fct) + 5, # coerce to numeric for donut hole 
+                chrompos = factor(x = paste0(CHROM, "_", POS), levels = chromposlvls) ) # levels to perserve order, note duplicated in now because of long
+
+
+
+# extend the middle thanks to this SO: https://stackoverflow.com/questions/13887365/circular-heatmap-that-looks-like-a-donut
+hole <- as.numeric(as.factor(smplvls)) + 5
+y_labels <- smplvls # perserve order
+y_breaks <- seq_along(y_labels) + 5
+
+
+circ_gt_plot <- ggplot() + 
+  geom_tile(data = qcvcf.masked.seg.gt.chrompos.long, 
+            aes(x=chrompos, y=smpls_num, fill = GT), colour=NA) + 
+  geom_text(data = sites, aes(x=chrompos, y=height, label = label), size = 8, color = "red") +
+  scale_y_continuous(breaks=y_breaks, labels=y_labels) +
+  ylim(c(0, max(y_breaks) + 1.25)) +
+  scale_fill_viridis_d("Genotype") + 
+  theme(axis.text.y = element_text(family = "Helvetica", face = "bold", size = 10)) + 
+  coord_polar(theta="x") + 
+  theme(axis.title.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks = element_blank(),
+        legend.position = "right",
+        legend.title = element_text(family = "Helvetica", face = "bold", vjust = 0.5, size = 11),
+        legend.text = element_text(family = "Helvetica", hjust = 0.5, vjust = 0.5, size = 10),
+        panel.background = element_rect(fill = "transparent"),
+        plot.background = element_rect(fill = "transparent"),
+        panel.grid = element_blank(),
+        panel.border = element_blank())
+
+plot( circ_gt_plot )
+
+jpeg("~/Documents/GitHub/Sepi_Res_CaseStudy/analyze_sepi_cc/figures/filtered_gt_circosplot.jpg",
+    height = 8, width = 11, res=500, units = "in")
+plot( circ_gt_plot )
+graphics.off()
+
+
+
+```
+
+
+
+## Annotate High Quality Variants
+```{r, results='asis'}
+# ann from vcfR snpeff
+ann <- vcfR2snpeff_ann(qcvcf.masked.seg)
+
+## annotation function
+gffdf <- vcfRmanip::GFF2VariantAnnotation_Short("~/Documents/MountPoints/mountIDEEL/resources/genomes/Sepidermidis/info/gff/GCF_000007645.1_ASM764v1_genomic.gff")
+gffdf$seqname_rn <- "Chromosome" # hacky fix to make this work with fasta and SNPeff, thankfully only one chrom
+# make genomic ranges object for sepi
+sepi_ranges <- GRanges(seqnames = gffdf$seqname_rn, ranges = IRanges(start = gffdf$start, end = gffdf$end), strand = factor(gffdf$strand), mcols=gffdf$GeneID) 
+# make genomic ranges object for seg sites
+seg_gt_sepi_ranges <- GRanges(seqnames = ann$CHROM,  ranges = IRanges(start = ann$POS, end = ann$POS)) 
+# find these overlaps 
+ov <- GenomicRanges::findOverlaps(sepi_ranges, seg_gt_sepi_ranges) 
+gffhits <- unique(queryHits(ov)) # just the unique rows of the gff
+gffdf_sub <- gffdf[gffhits,] # subset gff
+
+
+
+gffhits.expanded <- NULL
+for(i in 1:nrow(gffdf_sub)){
+  temp <- NULL
+  temp$POS <- seq(from=gffdf_sub$start[i], to=gffdf_sub$end[i])
+  temp$CHROM <- rep(gffdf_sub$seqname_rn[i], times=length(temp$POS))
+  temp$info <- rep(gffdf_sub$info[i], times=length(temp$POS))
+  temp$GeneID <- rep(gffdf_sub$GeneID[i], times=length(temp$POS))
+  temp$Description <- rep(gffdf_sub$Description[i], times=length(temp$POS))
+  
+  gffhits.expanded <- rbind(as.data.frame(gffhits.expanded), as.data.frame(temp))
+   
+}
+
+Expanded.ann <- left_join(x=ann, y=gffhits.expanded, by=c("CHROM", "POS"))
+
+DT::datatable(Expanded.ann, extensions = 'Buttons', options = list(dom = 'Bfrtip',buttons = c('csv'), pageLength=5))
+
+```
+
+```{r}
+
+saveRDS(repeatregions, file = "~/Documents/GitHub/Sepi_Res_CaseStudy/analyze_sepi_cc/data/derived_data/lowcomplexity_repeat_regions.RDS")
+
+
+save(qcvcf.masked, qcvcf.masked.seg.gt, qcvcf.masked.seg.gt.chrompos, 
+     file = "~/Documents/GitHub/Sepi_Res_CaseStudy/analyze_sepi_cc/data/derived_data/qcvcf_GT.RDA")
+
+# write out annotated
+saveRDS(Expanded.ann, file = "~/Documents/GitHub/Sepi_Res_CaseStudy/analyze_sepi_cc/data/derived_data/Sepi_QC_annotated-variants.RDS")
+
+
+# write out plot
+saveRDS(circ_gt_plot, file = "~/Documents/GitHub/Sepi_Res_CaseStudy/analyze_sepi_cc/figures/circ_gt_plot.RDS")
+
+
+```

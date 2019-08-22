@@ -1,0 +1,251 @@
+---
+title: "Whole Genome Single Nucleotide Variant Analysis among UNFILTERED data for Sepi Resistance"
+author: "Nicholas F. Brazeau"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output:
+  rmarkdown::html_document:
+    highlight: textmate
+    theme: lumen
+    toc: true
+    code_folding: hide
+editor_options: 
+  chunk_output_type: console
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = T, message = F, warning = F, fig.width = 10, fig.height = 7, results = 'hide')
+```
+
+```{r}
+#............
+# imports
+#..........
+library(vcfR)
+library(GenomicRanges)
+library(tidyverse)
+library(RColorBrewer)
+library(grid)
+library(DT)
+remotes::install_github("IDEELResearch/vcfRmanip")
+library(vcfRmanip)
+source("~/Documents/GitHub/Sepi_Res_CaseStudy/analyze_sepi_cc/R/00-basic_vcf_manipulations.R")
+
+
+# VCF IMPORT
+rawvcf <- vcfR::read.vcfR("~/Documents/MountPoints/mountedScratchLL/Projects/Sepi_Res_CaseStudy/variants/Sepi_Res_CaseStudy_HaploCaller_joint.raw.vcf", verbose = F)
+
+
+```
+
+
+# Goal 
+**Overall**: To detect putative drug resistance mutation(s) in clinical isolates of _S. epidermidis_ from a patient with phenotypic resistance.   
+**Immediate**: QC and Analysis of Segregating Sites and putative Drug-rx mutations on **UNFILTERED** VCF.
+
+## Background
+
+Over their course of treatment, a patient developed multi-drug resistant _S. epidermidis_. We are attempting to identify putative drug resistance mutations in line with the phenotypic data. **The purpose of this script is to filter the QC-passed VCFS**. 
+
+ Thus far, I have done the following: 
+
+1. Aligned with `bwa-mem` with default parameters to fasta from [NCBI](https://www.ncbi.nlm.nih.gov/genome/155?genome_assembly_id=299299)
+2. Deduplicated and mate-fixed PE reads (python modules)
+3. Variant called with `gatk haplotype caller`
+
+   
+### Raw Results from GATK 
+** Based on the raw calls from `GATK`: **    
+Overall, there are `r nrow(extract.indels(rawvcf, return.indels=F)@gt)` sites that are nucleotide polymorphisms. Of these, there are `r paste0(sum(is.biallelic(extract.indels(rawvcf, return.indels=F))), "/", nrow(extract.indels(rawvcf, return.indels=F)@gt))` biallelic M/SNPs.   
+Overall, there are `r nrow(extract.indels(rawvcf, return.indels=T)@gt)` (short) INDELs.
+ 
+**Note, `gatk happlotypecaller` is optimized for short variant discovery**. SVs will be analyzed in a separate script with `smoove`. 
+
+
+## Subset to Segregating Sites 
+
+Given that these are essentially clonal samples, what we care about are segregating sites, or sites that differ among the isolates. In order to be as sensitive as possible, we will say a site is different if the WSAF differs by 0.025 among any of the samples. By doing so, we account for potential minor clones that are present in the clinical isolates but were not detected through the genotype call. In addition, we are only going to consider biallelic sites under the assumption that multiallelic sites are due to sequencing error and not two new alleles actually being supported in these essentially clonal populations. 
+
+lot of the variation seems to be due to differences from the referent sequence, we 
+
+```{r}
+rawvcf.bi <- rawvcf[is.biallelic(rawvcf), ]
+rawvcf.bi <- vcfRmanip::vcfR2removepoorcovloci_dp(rawvcf.bi, minsampleswithcoverage = 5)
+
+rawvcf.bi.seg <- vcfRmanip::bivcfR2segsites_wsaf(rawvcf.bi, err = 0.05)
+
+```
+
+```{r}
+#........................
+# Get the WSNRAF 
+#........................
+
+# extract coverage and counts matrices
+rawvcf.bi.seg.coverage <- vcfR::extract.gt(rawvcf.bi.seg, element = "DP", as.numeric = T)
+rawvcf.bi.seg.counts_raw <- vcfR::extract.gt(rawvcf.bi.seg, element = "AD")
+rawvcf.bi.seg.counts_alt <- masplit(rawvcf.bi.seg.counts_raw, record = 2, sort = FALSE, decreasing = FALSE)
+
+# make WSNRAF
+rawvcf.bi.seg.wsnraf <- rawvcf.bi.seg.counts_alt/rawvcf.bi.seg.coverage
+rawvcf.bi.seg.wsnraf[is.nan(rawvcf.bi.seg.wsnraf)] <- NA # coverage was 0, can't divide by 0
+
+# store sample names
+smpls <- colnames(rawvcf.bi.seg.wsnraf)
+rawvcf.bi.seg.wsnraf <- tibble::as_tibble(rawvcf.bi.seg.wsnraf)
+colnames(rawvcf.bi.seg.wsnraf) <- smpls
+
+# extract info from chrom and POS
+rawvcf.bi.seg.chrompos <- tibble::tibble(
+  CHROM = factor( vcfR::getCHROM(rawvcf.bi.seg) ),
+  POS = as.numeric( vcfR::getPOS(rawvcf.bi.seg) )
+  )
+
+rawvcf.bi.seg.chrompos.wsnraf <- dplyr::bind_cols(rawvcf.bi.seg.chrompos, rawvcf.bi.seg.wsnraf) 
+
+```
+
+
+## Potential Sites Of Interest
+Potential sites determined by scanning sensitive phenotypes for alleles less than 0.2 or greater than 0.8 when the resistant phenotype alleles were greater than 0.8 or less than 0.2, respectively. In other words, look for sites where the alleles among the sensitive and resistant phenotypes diverge.
+
+#### High Fix Sites
+```{r}
+# looking for fixation
+highfix <- apply(rawvcf.bi.seg.chrompos.wsnraf, 1, function(x){
+  ret <- all( x[8:10] > 0.8, na.rm = T) & # greater than 0.8 for res pheno
+    all(x[3:7] < 0.2, na.rm = T) # less than 0.2 for sens pheno 
+  return(ret)
+})
+
+lowfix <- apply(rawvcf.bi.seg.chrompos.wsnraf, 1, function(x){
+  ret <- all( x[8:10] < 0.2, na.rm = T) & # lower than 0.2 for res pheno
+    all(x[3:7] > 0.8, na.rm = T) # greater than 0.8 for sens pheno 
+  return(ret)
+})
+
+
+```
+
+
+```{r, results='asis'}
+
+DT::datatable(rawvcf.bi.seg.chrompos.wsnraf[highfix,], 
+              extensions = 'Buttons', 
+              options = list(dom = 'Bfrtip',buttons = c('csv'), 
+                             pageLength = 50))
+
+
+```
+#### Low Fix Sites
+```{r, results='asis'}
+
+DT::datatable(rawvcf.bi.seg.chrompos.wsnraf[lowfix,], 
+              extensions = 'Buttons', 
+              options = list(dom = 'Bfrtip',buttons = c('csv'), 
+                             pageLength = 20))
+
+```
+
+
+### Visualize Seq Sites with Respect to Time
+
+```{r, results='asis'}
+
+
+#........................
+# Astericks
+#........................
+sites <- rbind.data.frame(
+  rawvcf.bi.seg.chrompos.wsnraf[highfix,],
+  rawvcf.bi.seg.chrompos.wsnraf[lowfix,]
+  ) %>% 
+  dplyr::select(c("CHROM", "POS")) %>% 
+  dplyr::mutate(chrompos = paste0(CHROM, "_", POS)) %>% 
+  dplyr::select(chrompos) %>% 
+  dplyr::mutate(
+    label = "*",
+    height = 13.75 # 8 samples + 5 for donut hole
+  )
+
+
+
+
+#........................
+# Circos Plot
+#........................
+
+smplvls <- c("Sepi01", "Sepi02", "Sepi03", "Sepi04", "Sepi05a", "Sepi05b",  "Sepi06", "Sepi07")
+chromposlvls <- rawvcf.bi.seg.chrompos.wsnraf %>% 
+  dplyr::arrange(., CHROM, POS) %>% 
+  dplyr::mutate(chrompos = paste0(CHROM, "_", POS)) %>% 
+  dplyr::select(chrompos) %>% 
+  unlist(.)
+
+
+
+rawvcf.bi.seg.chrompos.wsnraf.long <- rawvcf.bi.seg.chrompos.wsnraf %>% 
+  tidyr::gather(., key = "smpls", value = "wsnraf", 3:ncol(.)) %>% 
+  dplyr::mutate(smpls_fct = factor(smpls, 
+                                   levels = smplvls),
+                smpls_num = as.numeric(smpls_fct) + 5, # coerce to numeric for donut hole 
+                chrompos = factor(x = paste0(CHROM, "_", POS), levels = chromposlvls) ) # levels to perserve order, note duplicated in now because of long
+
+
+
+# extend the middle thanks to this SO: https://stackoverflow.com/questions/13887365/circular-heatmap-that-looks-like-a-donut
+hole <- as.numeric(as.factor(smplvls)) + 5
+y_labels <- smplvls # perserve order
+y_breaks <- seq_along(y_labels) + 5
+
+
+circ_wsaf_plot <- ggplot() + 
+  geom_tile(data = rawvcf.bi.seg.chrompos.wsnraf.long, 
+            aes(x=chrompos, y=smpls_num, fill = wsnraf), colour=NA) + 
+  geom_text(data = sites, aes(x=chrompos, y=height, label = label), size = 3, color = "red") +
+  scale_y_continuous(breaks=y_breaks, labels=y_labels) +
+  ylim(c(0, max(y_breaks) + 1.25)) +
+  scale_fill_viridis_c("WSNRAF") + 
+  theme(axis.text.y = element_text(family = "Helvetica", face = "bold", size = 10)) + 
+  coord_polar(theta="x") + 
+  theme(axis.title.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks = element_blank(),
+        legend.position = "right",
+        legend.title = element_text(family = "Helvetica", face = "bold", vjust = 0.5, size = 11),
+        legend.text = element_text(family = "Helvetica", hjust = 0.5, vjust = 0.5, size = 10),
+        panel.background = element_rect(fill = "transparent"),
+        plot.background = element_rect(fill = "transparent"),
+        panel.grid = element_blank(),
+        panel.border = element_blank())
+
+
+
+jpeg("~/Documents/GitHub/Sepi_Res_CaseStudy/analyze_sepi_cc/figures/raw_wsaf_circosplot.jpg",
+    height = 8, width = 11, res=500, units = "in")
+plot( circ_wsaf_plot )
+graphics.off()
+
+
+
+```
+
+
+```{r, saveout}
+
+# save data files 
+save(rawvcf.bi, rawvcf.bi.seg, rawvcf.bi.seg.chrompos.wsnraf, 
+     file = "~/Documents/GitHub/Sepi_Res_CaseStudy/analyze_sepi_cc/data/derived_data/rawvcf_wsnraf.RDA")
+
+# keeping mutlialleic sites for posterity
+rawvcf.multi <- rawvcf[!is.biallelic(rawvcf), ]
+saveRDS(rawvcf.multi, file = "~/Documents/GitHub/Sepi_Res_CaseStudy/analyze_sepi_cc/data/derived_data/multiallelic_rawvcfR.RDS")
+
+# save figure output
+saveRDS(circ_wsaf_plot, file = "~/Documents/GitHub/Sepi_Res_CaseStudy/analyze_sepi_cc/figures/circ_wsaf_plot.RDS")
+
+
+```
+

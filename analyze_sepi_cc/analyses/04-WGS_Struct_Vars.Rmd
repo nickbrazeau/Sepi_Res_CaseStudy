@@ -1,0 +1,305 @@
+---
+title: "Whole Genome INDEL Analysis for Sepi Resistance"
+author: "Nicholas F. Brazeau"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output:
+  rmarkdown::html_document:
+    highlight: textmate
+    theme: lumen
+    toc: true
+    code_folding: hide
+editor_options: 
+  chunk_output_type: console
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = F, warning = F, fig.width = 10, fig.height = 7)
+
+#............
+# imports
+#..........
+library(vcfR)
+library(tidyverse)
+library(RColorBrewer)
+library(grid)
+library(DT)
+devtools::install_github("IDEELResearch/vcfRmanip"); library(vcfRmanip)
+source("~/Documents/GitHub/Sepidermidis_resistance_hosp/Ranalysis/R/00_functions.R")
+
+```
+
+# Goal 
+**Overall**: To detect putative drug resistance mutation(s) in clinical isolates of _S. epidermidis_ from a patient with phenotypic resistance.   
+**Immediate**: QC and Analysis of Segregating Sites and putative Drug-rx mutations of structural variants.
+
+## Background
+
+Over their course of treatment, a patient developed multi-drug resistant _S. epidermidis_. We are attempting to identify putative drug resistance mutations in line with the phenotypic data. **The purpose of this script is to analyze the potential Structural Variants among the clinical isolates**. 
+
+ Thus far, I have done the following: 
+
+1. Aligned with `bwa-mem` with default parameters to fasta from [NCBI](https://www.ncbi.nlm.nih.gov/genome/155?genome_assembly_id=299299)
+2. Deduplicated and mate-fixed PE reads (python modules)
+3. Variant called with `smoove/lumpy`
+4. Used `duphold` to subset to more likely duplications and deletions
+
+```{r}
+# VCF IMPORT
+lumpyvcf <- vcfR::read.vcfR("~/Documents/GitHub/Sepi_Res_CaseStudy/smoothlumpy/bams/sepi_clincases-smoove.genotyped.vcf.gz", verbose = F)
+```
+
+Overall, there appears to be `r nrow(lumpyvcf@gt)` structural variants identifed by smoove. Going to investigate these for association with the clinical phenotype.
+
+
+## Variant Filtration
+### Seg Sites
+```{r}
+
+lumpyvcf.seg <- vcfRmanip::vcfR2segsites_gt(lumpyvcf)
+
+```
+
+
+### Mask Low Complexity Regions
+```{r}
+repeatregions <- readRDS(file = "~/Documents/GitHub/Sepi_Res_CaseStudy/analyze_sepi_cc/data/derived_data/lowcomplexity_repeat_regions.RDS")
+
+# mask lumpy
+
+bpbuffer <- 50
+
+repeatregions <- repeatregions %>% 
+  dplyr::rename(start = start_orient,
+                end = end_orient) %>% 
+  dplyr::mutate(
+    seqname = "Chromosome",
+    geneid = 1:nrow(.),
+    start = start - bpbuffer,
+    end = end + bpbuffer 
+  ) 
+
+
+lumpyvcf.seg.masked <- vcfRmanip::vcffilter_ChromPos(vcfRobject = lumpyvcf.seg,
+                                                 chromposbed = repeatregions)
+
+
+
+```
+
+
+### Only Consider Sites that pass `duphold` thresholds for DUP/DELs and coverage for BND/INV
+```{r}
+
+pass.lumpyvcf <- read.vcfR(file = "~/Documents/GitHub/Sepi_Res_CaseStudy/smoothlumpy/bams/sepi_clincases-smoove.genotyped.pass.vcf.gz")
+
+pass.lumpyvcf.chrompos <- tibble::tibble(CHROM = vcfR::getCHROM(pass.lumpyvcf),
+                                         POS = vcfR::getPOS(pass.lumpyvcf)
+                                            ) %>% 
+  dplyr::mutate(chrompos = paste0(CHROM, "_", POS))
+
+lumpyvcf.seg.masked.chrompos <- tibble::tibble(CHROM = vcfR::getCHROM(lumpyvcf.seg.masked),
+                                               POS = vcfR::getPOS(lumpyvcf.seg.masked)
+                                               ) %>% 
+  dplyr::mutate(chrompos = paste0(CHROM, "_", POS))
+
+keepsites <- lumpyvcf.seg.masked.chrompos$chrompos %in% pass.lumpyvcf.chrompos$chrompos
+
+
+# make new vcfR object
+lumpyvcf.seg.masked.filt <- new("vcfR", 
+                                   meta = append(lumpyvcf.seg.masked@meta, "##Filtered for duphold sites"),
+                                   fix = lumpyvcf.seg.masked@fix[keepsites, ],
+                                   gt = lumpyvcf.seg.masked@gt[keepsites, ]
+                                   )
+
+
+```
+
+
+
+
+
+## Analyzing All Indels
+### GT Mat for Raw Segs
+```{r, results='asis'}
+
+rawgt.chromposrefalt <- tibble::tibble(CHROM = vcfR::getCHROM(lumpyvcf.seg),
+                                       POS   = vcfR::getPOS(lumpyvcf.seg),
+                                       REF   = vcfR::getREF(lumpyvcf.seg),
+                                       ALT   = vcfR::getALT(lumpyvcf.seg)
+                                 ) 
+rawgt.gt <- extract.gt(lumpyvcf.seg)
+
+rawgt.out.table <- cbind.data.frame(rawgt.chromposrefalt, rawgt) %>% 
+  dplyr::select(c("CHROM", "POS","REF", "ALT", smplvls)) # reorder
+
+knitr::kable(rawgt.out.table)
+
+# ............
+# quick viz
+# ............
+
+# housekeeping
+smplvls <- c("Sepi01", "Sepi02", "Sepi03", "Sepi04", "Sepi05a", "Sepi05b", "Sepi06", "Sepi07")
+chromposlvls <- rawgt.out.table %>% 
+  dplyr::arrange(POS) %>% 
+  dplyr::mutate(chrompos = (paste0(CHROM, "_", POS))) %>% 
+  dplyr::select(chrompos) %>% 
+  unlist(.)
+
+# ploting
+rawgt.out.table %>% 
+  dplyr::mutate(chrompos = paste0(CHROM, "_", POS),
+                chrompos = factor(chrompos, levels = chromposlvls)) %>% 
+  dplyr::select(-c("CHROM", "POS", "REF", "ALT")) %>% 
+  dplyr::select(c("chrompos", dplyr::everything())) %>%  # reorder
+  tidyr::gather(., key = "smpls", value = "gt", 2:ncol(.)) %>%  
+  dplyr::mutate(gt = factor(gt, levels = c("0/0", "0/1", "1/1"))) %>% 
+  ggplot() +
+  geom_tile(aes(x=chrompos, y = smpls, fill = gt)) + 
+  scale_fill_viridis_d("GT") +
+  theme_minimal() + 
+  theme(
+    axis.text.x = element_blank(),
+    axis.title.y = element_blank()
+  )
+
+
+```
+
+
+### GT Mat for Filt Segs
+```{r, results='asis'}
+
+
+filtgt.chromposrefalt <- tibble::tibble(CHROM = vcfR::getCHROM(lumpyvcf.seg.masked.filt),
+                                       POS   = vcfR::getPOS(lumpyvcf.seg.masked.filt),
+                                       REF   = vcfR::getREF(lumpyvcf.seg.masked.filt),
+                                       ALT   = vcfR::getALT(lumpyvcf.seg.masked.filt)
+) 
+filtgt.gt <- extract.gt(lumpyvcf.seg.masked.filt)
+
+filtgt.out.table <- cbind.data.frame(filtgt.chromposrefalt, filtgt) %>% 
+  dplyr::select(c("CHROM", "POS","REF", "ALT", smplvls)) # reorder
+
+knitr::kable(filtgt.out.table)
+
+# ............
+# quick viz
+# ............
+
+# housekeeping
+smplvls <- c("Sepi01", "Sepi02", "Sepi03", "Sepi04", "Sepi05a", "Sepi05b", "Sepi06", "Sepi07")
+chromposlvls <- filtgt.out.table %>% 
+  dplyr::arrange(POS) %>% 
+  dplyr::mutate(chrompos = (paste0(CHROM, "_", POS))) %>% 
+  dplyr::select(chrompos) %>% 
+  unlist(.)
+
+# ploting
+filtgt.out.table %>% 
+  dplyr::mutate(chrompos = paste0(CHROM, "_", POS),
+                chrompos = factor(chrompos, levels = chromposlvls)) %>% 
+  dplyr::select(-c("CHROM", "POS", "REF", "ALT")) %>% 
+  dplyr::select(c("chrompos", dplyr::everything())) %>%  # reorder
+  tidyr::gather(., key = "smpls", value = "gt", 2:ncol(.)) %>%  
+  dplyr::mutate(gt = factor(gt, levels = c("0/0", "0/1", "1/1"))) %>% 
+  ggplot() +
+  geom_tile(aes(x=chrompos, y = smpls, fill = gt)) + 
+  scale_fill_viridis_d("GT") +
+  theme_minimal() + 
+  theme(
+    axis.text.x = element_blank(),
+    axis.title.y = element_blank()
+  )
+
+
+
+```
+
+
+```{r}
+save(lumpyvcf.seg,
+     lumpyvcf.seg.masked.filt,
+     rawgt.out.table,
+     filtgt.out.table, 
+     file = "~/Documents/GitHub/Sepi_Res_CaseStudy/analyze_sepi_cc/data/lumpy_raw_filt.RDA")
+
+
+```
+
+
+## Playground
+
+### Hotsports
+Analyze all indels for presumptive hotspots...
+#### INDEL Locations
+```{r, results='asis'}
+
+smplvls <- c("Sepi01", "Sepi02", "Sepi03", "Sepi04", "Sepi05a", "Sepi05b", "Sepi06", "Sepi07")
+ 
+chrompos <- as.tibble(vcfR::getFIX(lumpyvcf, getINFO = F))
+chrompos$POS <- as.numeric(chrompos$POS )
+
+plotObj <- vcfRmanip::gtmat012(lumpyvcf) %>%  
+  cbind.data.frame(chrompos[,2], .) %>% 
+  magrittr::set_colnames(tolower(colnames(.))) %>% 
+  dplyr::arrange(pos) %>% 
+  dplyr::mutate(pos = factor(pos)) %>% 
+  tidyr::gather(data =., key = "smpl", value="gt", 2:ncol(.)) %>% 
+  dplyr::mutate(gt = factor(gt)) %>% 
+  dplyr::mutate(smpl = factor(smpl, levels = smplvls)) %>% 
+  ggplot(data = ., aes(x=pos, y=smpl, fill = gt, position = pos)) +
+  scale_fill_brewer(palette = "Dark2") +
+  geom_tile() +
+  theme(axis.text.x = element_blank()) 
+
+plot(plotObj)
+
+
+```
+
+##### Location Hotspots
+```{r, results='asis'}
+chrompos <- as.tibble(vcfR::getFIX(lumpyvcf, getINFO = F))
+chrompos$POS <- as.numeric(chrompos$POS )
+
+plotObj1 <- vcfRmanip::gtmat012(lumpyvcf) %>%  
+  cbind.data.frame(chrompos[,2], .) %>% 
+  magrittr::set_colnames(tolower(colnames(.))) %>% 
+  dplyr::arrange(pos) %>% 
+  dplyr::mutate(pos = factor(pos)) %>% 
+  tidyr::gather(data =., key = "smpl", value="gt", 2:ncol(.)) %>% 
+  dplyr::mutate(gt = factor(gt)) %>% 
+  dplyr::mutate(smpl = factor(smpl, levels = smplvls)) %>% 
+  ggplot(data = ., aes(x=pos, y=smpl, fill = gt, position = pos)) +
+  scale_fill_brewer(palette = "Dark2") +
+  geom_tile() +
+  theme(axis.text.x = element_blank()) 
+
+
+plotObj2 <- vcfRmanip::gtmat012(lumpyvcf) %>%  
+  cbind.data.frame(chrompos[,2], .) %>% 
+  magrittr::set_colnames(tolower(colnames(.))) %>% 
+  dplyr::arrange(pos) %>% 
+  dplyr::mutate(pos = factor(pos)) %>% 
+  tidyr::gather(data =., key = "smpl", value="gt", 2:ncol(.)) %>% 
+  group_by(pos) %>% 
+  dplyr::summarise(gt = mean(gt)) %>% 
+  dplyr::mutate(popaf = "GTmean") %>% 
+  ggplot(data = ., aes(x=pos, y = popaf, fill = gt, position = pos)) +
+  scale_fill_distiller("PopAF", palette = "Spectral") +
+  geom_tile() +
+  theme(axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank()) 
+
+
+gridExtra::grid.arrange(plotObj1, plotObj2, layout_matrix = rbind(c(1), c(1), c(2)))
+
+
+```
+
+
+

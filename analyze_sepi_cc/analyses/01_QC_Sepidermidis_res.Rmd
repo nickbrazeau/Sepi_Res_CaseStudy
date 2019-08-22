@@ -132,6 +132,20 @@ graphics.off()
 
 ```
 
+
+##### Summary From Figure
+
+```{r, results='asis'}
+
+genomoutsummdepth <- do.call("rbind", 
+                             lapply(bamcovs, function(x){x[["genomcovperc"]]})) %>% 
+  dplyr::mutate_if(is.numeric, round, 4)
+
+DT::datatable(genomoutsummdepth, extensions = 'Buttons', options = list(dom = 'Bfrtip',buttons = c('csv'), pageLength = 10))
+
+
+```
+
 ## Sample-Level Genomic Coverage
 ```{r smplcov, fig.width=18, fig.height=12, results='hide', dpi=500}
 
@@ -153,6 +167,6 @@ do.call("rbind.data.frame", purrr::map(purrr::map(bamcovs, "windowcov"), "window
 
 ```{r}
 
-saveRDS(bamcovs, file = "~/Documents/GitHub/Sepi_Res_CaseStudy/analyze_sepi_cc/data/Sepi_coverage.RDS")
+saveRDS(bamcovs, file = "~/Documents/GitHub/Sepi_Res_CaseStudy/analyze_sepi_cc/data/derived_data/Sepi_coverage.RDS")
 
 ```
