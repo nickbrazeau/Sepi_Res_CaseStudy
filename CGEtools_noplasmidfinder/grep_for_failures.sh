@@ -3,7 +3,6 @@
 for i in `ls -d Sepi*/`
   do
     cd  $i/Assembler ; cat *err | grep "FAIL\|fail\|Fail\|ERROR\|error\|Error" >> failure_catch.log ; cd ../..
-    cd  $i/cgMLSTFinder ; cat *err | grep "FAIL\|fail\|Fail\|ERROR\|error\|Error" >> failure_catch.log ; cd ../..
     cd  $i/ContigAnalyzer ; cat *err | grep "FAIL\|fail\|Fail\|ERROR\|error\|Error" >> failure_catch.log ; cd ../..
     cd  $i/KmerFinder ; cat *err | grep "FAIL\|fail\|Fail\|ERROR\|error\|Error" >> failure_catch.log ; cd ../..
     cd  $i/MLST ; cat *err | grep "FAIL\|fail\|Fail\|ERROR\|error\|Error" >> failure_catch.log ; cd ../..
