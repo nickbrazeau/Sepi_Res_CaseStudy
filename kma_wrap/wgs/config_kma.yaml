@@ -1,0 +1,12 @@
+# samples and in/out paths
+smpls: <path>
+fastq: <path>
+scratch:  <path>
+
+# configurations for cutadapt
+adapters: <path>
+min_trimmed_length: <numeric>
+
+# configurations for kma
+perc_identity: <numeric>
+indexeddatabase: <path>

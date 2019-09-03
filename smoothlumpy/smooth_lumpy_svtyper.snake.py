@@ -11,7 +11,7 @@
 workdir: '/Users/nickbrazeau/Documents/GitHub/Sepi_Res_CaseStudy/smoothlumpy/bams/'
 bamrefdir = '/Users/nickbrazeau/Documents/GitHub/Sepi_Res_CaseStudy/smoothlumpy/bams/'
 SAMPLES, = glob_wildcards(bamrefdir + '{sample}.bam')
-
+REF = '/Users/nickbrazeau/Documents/MountPoints/mountIDEEL/resources/genomes/Sepidermidis/genomes/CORE_GCF_000007645.1_ASM764v1_genomic.fasta'
 
 # docker pull brentp/smoove
 # docker run -it brentp/smoove smoove -h
@@ -19,34 +19,9 @@ SAMPLES, = glob_wildcards(bamrefdir + '{sample}.bam')
 #############################
 #######  RULE ALL  ##########
 #############################
+
 rule all:
-#	input: 'smoothcaller.log'
-#	input: 'sepi_clincases-smoove.genotyped.dupdel.pass.vcf.gz'
-#	input: 'sepi_clincases-smoove.genotyped.bndinv.pass.vcf.gz'
-	input: 'sepi_clincases-smoove.genotyped.pass.vcf.gz'
-
-
-rule combine_filtered_vcfs:
-	input: dupdel = 'sepi_clincases-smoove.genotyped.dupdel.pass.vcf.gz',
-			bndinv = 'sepi_clincases-smoove.genotyped.bndinv.pass.vcf.gz'
-	output: 'sepi_clincases-smoove.genotyped.pass.vcf.gz'
-	shell: 'bcftools concat {input.dupdel} {input.bndinv} | \
-			bcftools sort - | \
-			gzip -c > {output}'
-
-rule filter_smooth_vcf_for_bndinv:
-	input: 'sepi_clincases-smoove.genotyped.vcf.gz'
-	output: 'sepi_clincases-smoove.genotyped.bndinv.pass.vcf.gz'
-	shell: '''bcftools view -i \
-			'(SVTYPE = "BND" & FMT/DP > 100) | (SVTYPE = "INV" & FMT/DP > 100)' \
-			{input} | bgzip -c > {output}'''
-
-rule filter_smooth_vcf_for_dupdels:
-	input: 'sepi_clincases-smoove.genotyped.vcf.gz'
-	output: 'sepi_clincases-smoove.genotyped.dupdel.pass.vcf.gz'
-	shell: '''bcftools view -i \
-			'(SVTYPE = "DEL" & FMT/DHFFC[0] < 0.7) | (SVTYPE = "DUP" & FMT/DHBFC[0] > 1.3)' \
-			{input} | bgzip -c > {output}'''
+	input: 'smoothcaller.log'
 
 rule smooth_operator_call:
 	input: expand('{samples}.bam', samples = SAMPLES)

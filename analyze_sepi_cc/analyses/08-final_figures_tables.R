@@ -20,7 +20,8 @@ graphics.off()
 # Structural Variant Supp Tables
 #..........................................
 load("~/Documents/GitHub/Sepi_Res_CaseStudy/analyze_sepi_cc/data/lumpy_raw_filt.RDA")
-
+readr::write_csv(x = passSV,
+                 path = "tables/passed_StructuralVars.csv")
 
 
 #..........................................
