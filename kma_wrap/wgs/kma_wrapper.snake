@@ -35,8 +35,7 @@ rule all:
 # Note, flags are: https://bitbucket.org/genomicepidemiology/kma/src/master/
 rule run_kma:
 	input:
-		trimmedread1 =  os.path.join(SCRROOT, "intermedfastq", "{sample}_R1.trimmed.fastq.gz"),
-		trimmedread2 =  os.path.join(SCRROOT, "intermedfastq", "{sample}_R2.trimmed.fastq.gz")
+		trimmedread1 =  os.path.join(SCRROOT, "intermedfastq", "{sample}.trimmed.fastq.gz"),
 	params:
 		identity = config["perc_identity"],
 		database = config["indexeddatabase"],
@@ -48,7 +47,7 @@ rule run_kma:
 		kma -bc90 -1t1 -Mt1 \
 		-ID {params.identity} \
 		-t_db {params.database} \
-		-int {input.trimmedread1} {input.trimmedread2} \
+		-int {input.trimmedread} \
 		-o {params.out} \
 		2> {output.kmalog}
 		"""
@@ -64,8 +63,7 @@ rule trim_and_align:
 		adapters = config["adapters"],
 	output:
 		cuttrimlog = os.path.join(SCRROOT, "intermedfastq", "{sample}_trimming.log"),
-		trimmedread1 =  os.path.join(SCRROOT, "intermedfastq", "{sample}_R1.trimmed.fastq.gz"),
-		trimmedread2 =  os.path.join(SCRROOT, "intermedfastq", "{sample}_R2.trimmed.fastq.gz")
+		trimmedread1 =  os.path.join(SCRROOT, "intermedfastq", "{sample}.trimmed.fastq.gz"),
 	params:
 		cutminlength = config["min_trimmed_length"]
 	shell:
@@ -76,7 +74,6 @@ rule trim_and_align:
 			-m {params.cutminlength} \
 			{input.read1} {input.read2} \
 			-o {output.trimmedread1} \
-			-p {output.trimmedread2}
 			2>{output.cuttrimlog}
 		"""
 
