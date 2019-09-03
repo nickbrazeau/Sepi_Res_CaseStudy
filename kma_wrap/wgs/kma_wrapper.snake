@@ -61,7 +61,7 @@ rule trim_and_align:
 	input:
 		read1 = os.path.join(SEQROOT, "{sample}_R1.fastq.gz"),
 		read2 = os.path.join(SEQROOT, "{sample}_R2.fastq.gz"),
-		adapters = config["ADAPTERS"],
+		adapters = config["adapters"],
 	output:
 		cuttrimlog = os.path.join(SCRROOT, "intermedfastq", "{sample}_trimming.log"),
 		trimmedread1 =  os.path.join(SCRROOT, "intermedfastq", "{sample}_R1.trimmed.fastq.gz"),
