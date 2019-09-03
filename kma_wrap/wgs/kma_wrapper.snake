@@ -67,7 +67,7 @@ rule trim_and_align:
 		trimmedread1 =  os.path.join(SCRROOT, "intermedfastq", "{sample}_R1.trimmed.fastq.gz"),
 		trimmedread2 =  os.path.join(SCRROOT, "intermedfastq", "{sample}_R2.trimmed.fastq.gz")
 	params:
-		cutminlength = config["cutmin_trimmed_length"]
+		cutminlength = config["min_trimmed_length"]
 	shell:
 		r"""
 		cutadapt --interleaved \
