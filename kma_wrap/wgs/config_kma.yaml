@@ -1,12 +1,12 @@
 # samples and in/out paths
-smpls: <path>
-fastq: <path>
-scratch:  <path>
+smpls: /proj/ideel/meshnick/users/NickB/Projects/Sepi_Res_CaseStudy/kma_wrap/Sepi_CaseSamples.tab.txt
+fastq: /proj/ideel/meshnick/users/NickB/Projects/Sepi_Res_CaseStudy/symlinks/
+scratch:  /pine/scr/n/f/nfb/Projects/Sepi_Res_CaseStudy/kma_wrap/
 
 # configurations for cutadapt
-adapters: <path>
-min_trimmed_length: <numeric>
+adapters: /nas02/apps/trimmomatic-0.36/Trimmomatic-0.36/adapters/TruSeq3-PE.fa
+min_trimmed_length: 30
 
 # configurations for kma
-perc_identity: <numeric>
-indexeddatabase: <path>
+perc_identity: 90
+indexeddatabase: /proj/ideel/meshnick/users/NickB/Projects/Sepi_Res_CaseStudy/kma_wrap/biofilm_gene_candidates/biofilm_gene_candidates
