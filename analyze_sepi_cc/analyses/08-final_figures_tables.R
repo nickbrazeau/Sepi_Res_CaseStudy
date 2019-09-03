@@ -34,5 +34,11 @@ readr::write_csv(x = cgetable.fx.plasmids,
           path = "tables/cge_tools_table.csv")
 
 
+#..........................................
+# Biofilms KMA Table
+#..........................................
+kmabiofilm.res <- readRDS("~/Documents/GitHub/Sepi_Res_CaseStudy/analyze_sepi_cc/data/derived_data/biofilms_kma_output.RDS")
 
 
+readr::write_csv(x = kmabiofilm.res,
+                 path = "tables/kma_biofoilms_table.csv")

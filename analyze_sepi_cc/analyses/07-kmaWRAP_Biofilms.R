@@ -43,12 +43,24 @@ seqinr::write.fasta(sequences = ret,
 #.............................................................................
 # RUN KMA
 #.............................................................................
-# system(call)
+# run through shell not R
 
 #.............................................................................
 # Read in KMA results
 #.............................................................................
+kmabiofilm.paths <- list.files(path = "~/Documents/MountPoints/mountedScratchLL/Projects/Sepi_Res_CaseStudy/kma_wrap/",
+                               pattern = ".res",
+                               full.names = T)
 
+kmabiofilm.res <- lapply(kmabiofilm.paths, function(x){
+  name <- basename(x)
+  ret <- readr::read_tsv(x)
+  ret <- cbind.data.frame(smpl = name, ret)
+  return(ret)
+  }) %>%
+  dplyr::bind_rows(.) %>%
+  dplyr::mutate(smpl = gsub(".res", "", smpl))
 
+saveRDS(kmabiofilm.res, file = "data/derived_data/biofilms_kma_output.RDS")
 
 
