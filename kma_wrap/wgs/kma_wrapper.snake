@@ -44,7 +44,7 @@ rule run_kma:
 		kmalog = os.path.join(SCRROOT, "{sample}.kmalog")
 	shell:
 		r"""
-		kma -bc90 -1t1 -Mt1 \
+		kma -bc90 -1t1 -Mt1 1 \
 		-ID {params.identity} \
 		-t_db {params.database} \
 		-int {input.trimmedread} \
