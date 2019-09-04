@@ -62,7 +62,7 @@ Overall, there appears to be `r nrow(lumpyvcf@gt)` structural variants identifed
 ```{r}
 
 lumpyvcf.seg <- vcfRmanip::vcfR2segsites_gt(lumpyvcf)
-
+lumpyvcf.seg
 ```
 
 

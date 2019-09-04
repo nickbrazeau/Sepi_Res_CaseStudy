@@ -33,12 +33,11 @@ cgetable.fx.plasmids$plasmids <- unlist(cgetable.fx.plasmids$plasmids)
 readr::write_csv(x = cgetable.fx.plasmids,
           path = "tables/cge_tools_table.csv")
 
+#......................
+# Resfinder Assoc
+#.......................
+resgenes <- stringr::str_split(unlist(cgetable.fx$resistance_genes[[1]]), ",", simplify = T)
+resgenes <- gsub(" ", "", as.vector(resgenes))
+resfinderdb.genesdf <- readRDS(file = "data/derived_data/resfinderdb_genesdf.rds")
 
-#..........................................
-# Biofilms KMA Table
-#..........................................
-kmabiofilm.res <- readRDS("~/Documents/GitHub/Sepi_Res_CaseStudy/analyze_sepi_cc/data/derived_data/biofilms_kma_output.RDS")
-
-
-readr::write_csv(x = kmabiofilm.res,
-                 path = "tables/kma_biofoilms_table.csv")
+resfinderdb.genesdf <- resfinderdb.genesdf[ stringr::str_detect(resfinderdb.genesdf$gene, pattern = paste(resgenes, collapse = "|") ), ]
