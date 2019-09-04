@@ -1,3 +1,9 @@
+#.............................................................................
+# Purpose of this script was to investiage if there was anything
+# interesting in biofilm genes previous identifed by Meric et al. 2018
+# https://www.nature.com/articles/s41467-018-07368-7
+#.............................................................................
+
 library(tidyverse)
 library(rentrez)
 
