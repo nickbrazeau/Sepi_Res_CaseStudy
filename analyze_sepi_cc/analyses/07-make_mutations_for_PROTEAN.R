@@ -32,7 +32,8 @@ gffseq <- gffseq[names(gffseq) == "NC_004461.1"] # genomic DNA
 # pull out walk seq based on coordinates
 # GFF are 1-based
 walk.seq.ref <- gffseq$NC_004461.1[walk.df$start:walk.df$end]
-
+seqinr::write.fasta(sequences = paste(seqinr::translate(walk.seq.ref), collapse = ""),
+                    names = "walK", file.out = "../provean_analysis/sepi_walk_gene.fna")
 
 
 #...........................
@@ -49,27 +50,50 @@ s1int <- 26722 - walk.df$start + 1 # perserve 1-base
 s2int <- 26858 - walk.df$start + 1 # perserve 1-base
 walk.seq.mut.ourstudy[s1int:(s1int+3)] <- c("G", NA, NA, NA)
 walk.seq.mut.ourstudy[s2int] <- "T"
+seqinr::translate(walk.seq.mut.ourstudy)[415]
 # now get rid of deletion
 walk.seq.mut.ourstudy <- walk.seq.mut.ourstudy[!is.na(walk.seq.mut.ourstudy)]
 
+seqinr::translate(walk.seq.ref)[369:375]
+seqinr::translate(walk.seq.mut.ourstudy)[369:375]
+# even though the deletion crosses multiple amino acid codons, it
+# still only encodes a single AA deletion
 
 #...........................
 # Write out DNA and AA Fasta
 #...........................
 seqinr::write.fasta(sequences = walk.seq.mut.ourstudy,
                     names = c("Brazeau_haplotype"),
-                    file.out = "data/derived_data/SEpi_mutated_haplotypes.fa")
+                    file.out = "../provean_analysis/SEpi_mutated_haplotypes.fa")
 
 
 seqinr::write.fasta(sequences = seqinr::translate(walk.seq.mut.ourstudy),
                     names = c("Brazeau_haplotype"),
-                    file.out = "data/derived_data/SEpi_mutated_haplotypes.fna")
+                    file.out = "../provean_analysis/SEpi_mutated_haplotypes.fna")
+
+
+seqinr::write.fasta(sequences = walk.seq.ref,
+                    names = c("Ref_haplotype"),
+                    file.out = "../provean_analysis/SEpi_ref_haplotypes.fa")
+
+
+seqinr::write.fasta(sequences = seqinr::translate(walk.seq.ref),
+                    names = c("Ref_haplotype"),
+                    file.out = "../provean_analysis/SEpi_ref_haplotypes.fna")
 
 
 
+#...........................
+# How many differences do we have
+# exactly between the ref and mut fastas
+#...........................
+library(Biostrings)
+ref.xstring <- Biostrings::AAStringSet(x = paste(seqinr::translate(walk.seq.ref), collapse = ""))
+mut.xstring <- Biostrings::AAStringSet(x = paste(seqinr::translate(walk.seq.mut.ourstudy), collapse = ""))
 
-
-
+mutref.stringset <- Biostrings::AAStringSet(x = c(ref.xstring, mut.xstring))
+names(mutref.stringset) <- c("ref", "mut")
+Biostrings::stringDist(x = mutref.stringset, method = "levenshtein")
 
 
 

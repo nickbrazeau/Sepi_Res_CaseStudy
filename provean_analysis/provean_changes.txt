@@ -1,0 +1,15 @@
+# https://www.hgvs.org/mutnomen/recs-prot.html
+
+
+INDEL/P415L
+
+# Amino Acid Fasta
+V220F
+N183I
+V500F
+G312S; D472H
+N48D
+N183I
+G307D
+E573G
+M428T

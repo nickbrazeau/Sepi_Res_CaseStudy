@@ -53,26 +53,25 @@ Over their course of treatment, a patient developed multi-drug resistant _S. epi
 2. Deduplicated and mate-fixed PE reads (python modules)
 3. Variant called with `gatk haplotype caller`
 
-   
-### Raw Results from GATK 
-** Based on the raw calls from `GATK`: **    
-Overall, there are `r nrow(extract.indels(rawvcf, return.indels=F)@gt)` sites that are nucleotide polymorphisms. Of these, there are `r paste0(sum(is.biallelic(extract.indels(rawvcf, return.indels=F))), "/", nrow(extract.indels(rawvcf, return.indels=F)@gt))` biallelic M/SNPs.   
-Overall, there are `r nrow(extract.indels(rawvcf, return.indels=T)@gt)` (short) INDELs.
  
 **Note, `gatk happlotypecaller` is optimized for short variant discovery**. SVs will be analyzed in a separate script with `smoove`. 
 
 
 ## Subset to Segregating Sites 
 
-Given that these are essentially clonal samples, what we care about are segregating sites, or sites that differ among the isolates. In order to be as sensitive as possible, we will say a site is different if the WSAF differs by 0.025 among any of the samples. By doing so, we account for potential minor clones that are present in the clinical isolates but were not detected through the genotype call. In addition, we are only going to consider biallelic sites under the assumption that multiallelic sites are due to sequencing error and not two new alleles actually being supported in these essentially clonal populations. 
+Given that these are essentially clonal samples, what we care about are segregating sites, or sites that differ among the isolates. In order to be as sensitive as possible, we will say a site is different if the WSAF differs by 0.05 among any of the samples. By doing so, we account for potential minor clones that are present in the clinical isolates but were not detected through the genotype call. In addition, we are only going to consider biallelic sites under the assumption that multiallelic sites are due to sequencing error and not two new alleles actually being supported in these essentially clonal populations. 
 
-lot of the variation seems to be due to differences from the referent sequence, we 
 
 ```{r}
+# numbers for manuscript
 rawvcf.bi <- rawvcf[is.biallelic(rawvcf), ]
-rawvcf.bi <- vcfRmanip::vcfR2removepoorcovloci_dp(rawvcf.bi, minsampleswithcoverage = 5)
+rawvcf.bi.snv <- vcfR::extract.indels(rawvcf.bi, return.indels = F)
+rawvcf.bi.indels <- vcfR::extract.indels(rawvcf.bi, return.indels = T)
 
-rawvcf.bi.seg <- vcfRmanip::bivcfR2segsites_wsaf(rawvcf.bi, err = 0.05)
+
+# work
+rawvcf.bi.dp <- vcfRmanip::vcfR2removepoorcovloci_dp(rawvcf.bi, minsampleswithcoverage = 5)
+rawvcf.bi.seg <- vcfRmanip::bivcfR2segsites_wsaf(rawvcf.bi.dp, err = 0.05)
 
 ```
 
@@ -102,6 +101,13 @@ rawvcf.bi.seg.chrompos <- tibble::tibble(
   )
 
 rawvcf.bi.seg.chrompos.wsnraf <- dplyr::bind_cols(rawvcf.bi.seg.chrompos, rawvcf.bi.seg.wsnraf) 
+```
+
+```{r, results='asis'}
+DT::datatable(rawvcf.bi.seg.chrompos.wsnraf, 
+              extensions = 'Buttons', 
+              options = list(dom = 'Bfrtip',buttons = c('csv'), 
+                             pageLength = 50))
 
 ```
 
@@ -110,7 +116,7 @@ rawvcf.bi.seg.chrompos.wsnraf <- dplyr::bind_cols(rawvcf.bi.seg.chrompos, rawvcf
 Potential sites determined by scanning sensitive phenotypes for alleles less than 0.2 or greater than 0.8 when the resistant phenotype alleles were greater than 0.8 or less than 0.2, respectively. In other words, look for sites where the alleles among the sensitive and resistant phenotypes diverge.
 
 #### High Fix Sites
-```{r}
+```{r, results='asis'}
 # looking for fixation
 highfix <- apply(rawvcf.bi.seg.chrompos.wsnraf, 1, function(x){
   ret <- all( x[8:10] > 0.8, na.rm = T) & # greater than 0.8 for res pheno
@@ -150,7 +156,7 @@ DT::datatable(rawvcf.bi.seg.chrompos.wsnraf[lowfix,],
 
 ### Visualize Seq Sites with Respect to Time
 
-```{r, results='asis'}
+```{r}
 
 
 #........................
@@ -229,9 +235,11 @@ plot( circ_wsaf_plot )
 graphics.off()
 
 
-
 ```
 
+```{r, results='asis'}
+plot( circ_wsaf_plot )
+```
 
 ```{r, saveout}
 

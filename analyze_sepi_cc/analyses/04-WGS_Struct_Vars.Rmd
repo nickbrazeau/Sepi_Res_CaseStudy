@@ -57,15 +57,15 @@ lumpyvcf <- vcfR::read.vcfR("~/Documents/GitHub/Sepi_Res_CaseStudy/smoothlumpy/b
 Overall, there appears to be `r nrow(lumpyvcf@gt)` structural variants identifed by smoove. Going to investigate these for association with the clinical phenotype.
 
 
-## Variant Filtration
-### Seg Sites
+
+## Seg Sites
 ```{r}
 
 lumpyvcf.seg <- vcfRmanip::vcfR2segsites_gt(lumpyvcf)
 lumpyvcf.seg
 ```
 
-
+## Variant Filtration
 ### Mask Low Complexity Regions
 ```{r}
 repeatregions <- readRDS(file = "~/Documents/GitHub/Sepi_Res_CaseStudy/analyze_sepi_cc/data/derived_data/lowcomplexity_repeat_regions.RDS")

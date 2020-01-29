@@ -39,3 +39,27 @@ rawvcf.biofilms <- vcfRmanip::vcfR2SubsetChromPos(vcfRobject = rawvcf,
 
 # empty vcf
 
+
+#.............................................................................
+# Do we have Coverage
+#.............................................................................
+coveragedat <- list.files("~/Documents/MountPoints/mountedScratchLL/Projects/Sepi_Res_CaseStudy/SumSTATsandQC/coverage/data/",
+                          pattern = ".long.cov", full.names = T)
+
+
+readcov <- function(path){
+  name <- gsub(".long.cov", "", basename(path))
+  ret <- readr::read_tsv(path, col_names = F)
+  colnames(ret) <- c("CHROM", "POS", "coverage")
+  ret <- ret %>%
+    dplyr::mutate(smpl = name) %>%
+    dplyr::select(c("smpl", dplyr::everything()))
+}
+
+
+coverage.list <- lapply(coveragedat, readcov)
+
+
+# should be an easy intersect
+# does lack of mutation with coverage indicate biofilm avirulence?
+# need to know actg strain virulence?

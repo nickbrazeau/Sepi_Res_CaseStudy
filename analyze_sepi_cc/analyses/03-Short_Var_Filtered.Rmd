@@ -34,6 +34,8 @@ source("~/Documents/GitHub/Sepi_Res_CaseStudy/analyze_sepi_cc/R/00-basic_vcf_man
 # VCF IMPORT
 qcvcf <- vcfR::read.vcfR("~/Documents/MountPoints/mountedScratchLL/Projects/Sepi_Res_CaseStudy/variants/Sepi_Res_CaseStudy_HaploCaller_joint.ann.vcf", verbose = F)
 
+# drop to biallelic
+qcvcf <- qcvcf[is.biallelic(qcvcf), ]
 
 ```
 
@@ -159,13 +161,6 @@ qcvcf.masked.seg <- vcfRmanip::vcfR2segsites_gt(qcvcf.masked)
 
 ```
 
-### Remove Singleton Sites by GT
-Remove sites that are only found in one sample. More likely to be a sequencing error and given that they are an "isolated" event, likely not associated with the differentiating DAP clinical phenotype.
-```{r}
-
-qcvcf.masked.seg.sing <- vcfRmanip::vcfR2removesingletons_gt(qcvcf.masked.seg)
-
-```
 
 
 ## Find Interesting Sites
