@@ -28,8 +28,6 @@ library(grid)
 library(DT)
 devtools::install_github("IDEELResearch/vcfRmanip")
 library(vcfRmanip)
-
-
 ```
 
 # Goal 
