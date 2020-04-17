@@ -6,7 +6,7 @@ you will need to run the two "pipelines" below:
 
 ## Workflow Overview
 <p align="center">
-  <img src="https://github.com/nickbrazeau/Sepi_Res_CaseStudy/tree/master/misc/sepi_analysis_approach.png" alt="Sepi Approach"/>
+  <img src="https://github.com/nickbrazeau/Sepi_Res_CaseStudy/tree/master/misc/sepi_analysis_approach.png&raw=true" alt="Sepi Approach"/>
 </p>
 
 
