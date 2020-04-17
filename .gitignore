@@ -30,5 +30,6 @@ test/*
 .Rproj.user
 
 # my files
-*png
-*pdb
+Hand_Drawn_Figures/
+provean_analysis/JJJFigure/
+provean_analysis/JJJmodel/
