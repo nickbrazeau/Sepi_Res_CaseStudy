@@ -5,10 +5,7 @@ completed in the Manuscript Brazeau & Levinson _et al._ 2019,
 you will need to run the two "pipelines" below:
 
 ## Workflow Overview
-<p align="center">
-  <img src="https://github.com/nickbrazeau/Sepi_Res_CaseStudy/tree/master/misc/sepi_analysis_approach.png&raw=true" alt="Sepi Approach"/>
-</p>
-
+![](https://raw.githubusercontent.com/nickbrazeau/Sepi_Res_CaseStudy/master/misc/sepi_analysis_approach.png)
 
 ### Referent Guided Alignments/WGS
 1. Alignment (wgs_pe_improved)
