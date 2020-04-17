@@ -30,7 +30,8 @@ rule all:
 #	input: expand('SumSTATsandQC/AlignSummary/{sample}.AlignSummary.Metrics', sample = SAMPLES)
 #	input: expand('SumSTATsandQC/FlagStats/{sample}.samtools.flagstats', sample = SAMPLES)
 #	input: expand('SumSTATsandQC/coverage/data/{sample}.long.cov', sample = SAMPLES)
-   input: expand('SumSTATsandQC/CallableLoci/{sample}_callable_status.bed', sample = SAMPLES)
+	input: expand('SumSTATsandQC/coverage/data/{sample}.summ.cov', sample = SAMPLES)
+#   input: expand('SumSTATsandQC/CallableLoci/{sample}_callable_status.bed', sample = SAMPLES)
 ###############################################################################
 
 
@@ -51,6 +52,13 @@ rule CallableLoci_By_SAMPLE:
 		-o {output.bedfile}'
 # Min depth means If the number of QC+ bases (on reads with MAPQ > minMappingQuality and with base quality > minBaseQuality) exceeds this value and is less than maxDepth the site is considered PASS.
 # NOTE this tool has other default parameters discussed here: https://software.broadinstitute.org/gatk/gatkdocs/3.7-0/org_broadinstitute_gatk_tools_walkers_coverage_CallableLoci.php
+
+rule cov_summary:
+	input:	'wgs_pe_improved/aln/merged/{sample}.bam'
+	output:	'SumSTATsandQC/coverage/data/{sample}.summ.cov'
+	shell:	'bedtools genomecov \
+		-ibam {input} | grep "genome" \
+		> {output}'
 
 
 rule calculate_cov_forplots:
