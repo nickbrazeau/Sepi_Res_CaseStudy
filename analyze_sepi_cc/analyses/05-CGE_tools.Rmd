@@ -1,20 +1,11 @@
 ---
-title: "CGE Tools Summary"
-author: "Nicholas F. Brazeau"
-date: "`r format(Sys.time(), '%B %d, %Y')`"
-output:
-  rmarkdown::html_document:
-    highlight: textmate
-    theme: lumen
-    toc: true
-    code_folding: hide
+output: html_document
 editor_options: 
   chunk_output_type: console
 ---
+# CGE Tools Summary
 
-
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, message = F, warning = F, fig.width = 10, fig.height = 7)
+```{r}
 #............
 # imports
 #..........
@@ -23,7 +14,7 @@ library(DT)
 
 ```
 
-# Goal 
+## Goal 
 **Overall**: To detect putative drug resistance mutation(s) in clinical isolates of _S. epidermidis_ from a patient with phenotypic resistance.   
 **Immediate**: Use the CGE BAP (using plasmid finder seperately due to build issues) to determine change in virulence/plasmid factors
 
@@ -80,7 +71,7 @@ DT::datatable(cgetable.fx, extensions = 'Buttons',
 ```
 
 
-## PlasmidFinder
+### PlasmidFinder
 The original `CGEtools BAP` on our cluster was hitting a bug when going through plasmidfinder. Cloned locally and ran the docker there. 
 
 ```{r}
@@ -115,7 +106,7 @@ plsmdfinder %>%
 ```
 
 
-### Combine Tables for Cleaner Output
+#### Combine Tables for Cleaner Output
 Going to drop some of the information from plasmidfinder, and just keep the plasmids that it identified in the final column.
 ```{r}
 
@@ -154,7 +145,10 @@ save(cgetable.fx,
 
 ```
 
-
+###### _Session Info_
+```{r}
+sessionInfo()
+```
 
 
 

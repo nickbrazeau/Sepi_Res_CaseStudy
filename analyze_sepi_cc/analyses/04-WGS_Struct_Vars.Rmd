@@ -1,19 +1,14 @@
 ---
-title: "Whole Genome INDEL Analysis for Sepi Resistance"
-author: "Nicholas F. Brazeau"
-date: "`r format(Sys.time(), '%B %d, %Y')`"
-output:
-  rmarkdown::html_document:
-    highlight: textmate
-    theme: lumen
-    toc: true
-    code_folding: hide
+output: html_document
 editor_options: 
   chunk_output_type: console
 ---
 
+# INDEL Analysis for Sepi Resistance
 
-```{r setup, include=FALSE}
+
+
+```{r, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, message = F, warning = F, fig.width = 10, fig.height = 7)
 ```
 
@@ -22,6 +17,7 @@ knitr::opts_chunk$set(echo = TRUE, message = F, warning = F, fig.width = 10, fig
 # imports
 #..........
 library(vcfR)
+library(GenomicRanges)
 library(tidyverse)
 library(RColorBrewer)
 library(grid)
@@ -30,22 +26,21 @@ devtools::install_github("IDEELResearch/vcfRmanip")
 library(vcfRmanip)
 ```
 
-# Goal 
+## Goal 
 **Overall**: To detect putative drug resistance mutation(s) in clinical isolates of _S. epidermidis_ from a patient with phenotypic resistance.   
 **Immediate**: QC and Analysis of Segregating Sites and putative Drug-rx mutations of structural variants.
 
-## Background
-
-Over their course of treatment, a patient developed multi-drug resistant _S. epidermidis_. We are attempting to identify putative drug resistance mutations in line with the phenotypic data. **The purpose of this script is to analyze the potential Structural Variants among the clinical isolates**. 
+### Background
 
  Thus far, I have done the following: 
 
 1. Aligned with `bwa-mem` with default parameters to fasta from [NCBI](https://www.ncbi.nlm.nih.gov/genome/155?genome_assembly_id=299299)
 2. Deduplicated and mate-fixed PE reads (python modules)
-3. Variant called with `smoove/lumpy`
-4. Used `duphold` to subset to more likely duplications and deletions
-5. Kara Moser used `mummer` to make inversion and BND bed
+3. Structural variants called with `smoove/lumpy`
+4. Structural variants called with Assemblytics
 
+## INDELs
+### Lumpy
 ```{r}
 # VCF IMPORT
 lumpyvcf <- vcfR::read.vcfR("~/Documents/GitHub/Sepi_Res_CaseStudy/smoothlumpy/bams/sepi_clincases-smoove.genotyped.vcf.gz", verbose = F)
@@ -56,20 +51,47 @@ Overall, there appears to be `r nrow(lumpyvcf@gt)` structural variants identifed
 
 
 
-## Seg Sites
+#### Seg Sites
 ```{r}
-
 lumpyvcf.seg <- vcfRmanip::vcfR2segsites_gt(lumpyvcf)
 lumpyvcf.seg
 ```
 
-## Variant Filtration
-### Mask Low Complexity Regions
+#### Lumpy Analyzing All Indels
+##### GT Mat for Raw Seg INDEls
+```{r, results='asis'}
+
+rawchrompos <- data.frame(CHROM = vcfR::getCHROM(lumpyvcf.seg), 
+                          POS = vcfR::getPOS(lumpyvcf.seg), 
+                          SVTYPE = vcfR::extract.info(lumpyvcf.seg, "SVTYPE"),
+                          SVLEN = vcfR::extract.info(lumpyvcf.seg, "SVLEN"),
+                          END = vcfR::extract.info(lumpyvcf.seg, "END")
+                          )
+
+rawgt <- tibble::as_tibble( vcfR::extract.gt(lumpyvcf.seg, element = "GT") ) %>%
+  dplyr::select(c("Sepi01", "Sepi02", "Sepi03", "Sepi04", "Sepi05a", "Sepi05b", "Sepi06", "Sepi07")) # reorder
+
+```
+
+```{r results='asis'}
+DT::datatable(cbind.data.frame(rawchrompos, rawgt), 
+              extensions='Buttons',
+               options = list(
+              searching = T,
+              pageLength = 5,
+              dom = 'Bfrtip', 
+              buttons = c('csv')))
+
+```
+
+
+
+#### Lumpy Variant Filtration
+##### Mask Low Complexity Regions
 ```{r}
 repeatregions <- readRDS(file = "~/Documents/GitHub/Sepi_Res_CaseStudy/analyze_sepi_cc/data/derived_data/lowcomplexity_repeat_regions.RDS")
 
 # mask lumpy
-
 bpbuffer <- 50
 
 repeatregions <- repeatregions %>% 
@@ -87,11 +109,10 @@ lumpyvcf.seg.masked <- vcfRmanip::vcffilter_ChromPos(vcfRobject = lumpyvcf.seg,
                                                  chromposbed = repeatregions)
 
 
-
 ```
 
 
-### Apply Filter for Dels and Dups
+##### Apply Filter for Dels and Dups
 Following the suggestions from `duphold` [manuscript](https://academic.oup.com/gigascience/article/8/4/giz040/5477467) that for deletions
 a DHFFC < 0.7 and for duplicates a DHBFC > 1.3 lead to accurate calls.
 
@@ -103,7 +124,7 @@ lumpyvcf.seg.masked.long <- lumpyvcf.seg.masked %>%
 lumpyvcf.seg.masked.long <- dplyr::left_join(lumpyvcf.seg.masked.long$fix, lumpyvcf.seg.masked.long$gt, by = c("ChromKey", "POS"))
 ```
 
-#### Duplications
+###### Duplications
 
 ```{r}
 
@@ -128,10 +149,8 @@ DT::datatable(passDUPs.gtmat, extensions='Buttons',
 ```
 
 
-#### Deletions
+###### Deletions
 ```{r}
-
-
 passDELs.lumpyvcf.seg.masked.long <- lumpyvcf.seg.masked.long %>% 
   dplyr::filter(ALT == "<DEL>" & gt_DHFFC < 0.7)
 
@@ -152,93 +171,21 @@ DT::datatable(passDELs.gtmat, extensions='Buttons',
 
 ```
 
-
-### Apply Filter for BND and Inv
-Compare complex rearrangement and inversion calls between lumpy and mummer. Only take those that match. Note, no segregating inversion found. 
-
-```{r}
-
-mummerbed <- readr::read_tsv("~/Documents/GitHub/Sepi_Res_CaseStudy/analyze_sepi_cc/data/derived_data/all.potential-inversions.bed", col_names = F) %>% 
-  magrittr::set_colnames(c("CHROM", "POS", "END", "SVLEN", "Indiv")) %>% 
-  dplyr::mutate(Indiv = stringr::str_split_fixed(Indiv, "_", n=2)[,1])
-
-mummerbed.chrompos <- mummerbed  %>% 
-  dplyr::select(c("CHROM", "POS", "END", "SVLEN")) %>% 
-  dplyr::filter(!duplicated(.)) %>% 
-  dplyr::arrange(POS) %>% 
-  dplyr::mutate(y = 1:nrow(.))
-
-
-
-BND <- lumpyvcf.seg.masked.long %>% 
-  dplyr::select(c("CHROM", "POS", "ID", "SVTYPE", "SVLEN", "END", "Indiv", "gt_GT")) %>%
-  dplyr::mutate(Indiv = tolower(Indiv)) %>% 
-  dplyr::filter(SVTYPE == "BND")
-
-BND.chrompos <- BND %>% 
-  dplyr::select(c("CHROM", "POS", "END", "SVLEN")) %>% 
-  dplyr::filter(!duplicated(.)) %>% 
-  dplyr::mutate(y = 1:nrow(.))
-
-
-
-BND.chrompos.adp <- data.frame(start = 720794, end = 1518329 )
-
-```
-
-##### Visualize Mummer "Dot Plot" For All Potential Inversions
-```{r, results='asis'}
-ggplot() + 
-  geom_rect(data = mummerbed.chrompos, aes(xmin = POS, xmax = END, ymin = y+0.25, ymax=y+0.75), color = "black") +
-  geom_rect(data = BND.chrompos.adp, aes(xmin = start, xmax = end, ymin=0, ymax=Inf), fill = "red", alpha = 0.2)
-  
-  
-
-
-```
-
-**Based on visualization, we do not find support this complex breakend.**
-
-## Analyzing All Indels
-### GT Mat for Raw Segs
+###### INDELs Together
 ```{r, results='asis'}
 
-rawchrompos <- data.frame(CHROM = vcfR::getCHROM(lumpyvcf.seg), 
-                          POS = vcfR::getPOS(lumpyvcf.seg), 
-                          SVTYPE = vcfR::extract.info(lumpyvcf.seg, "SVTYPE"),
-                          SVLEN = vcfR::extract.info(lumpyvcf.seg, "SVLEN"),
-                          END = vcfR::extract.info(lumpyvcf.seg, "END")
-                          )
-
-rawgt <- tibble::as_tibble( vcfR::extract.gt(lumpyvcf.seg, element = "GT") ) %>%
-  dplyr::select(c("Sepi01", "Sepi02", "Sepi03", "Sepi04", "Sepi05a", "Sepi05b", "Sepi06", "Sepi07")) # reorder
-  
-
-DT::datatable(cbind.data.frame(rawchrompos, rawgt), 
-              extensions='Buttons',
-               options = list(
-              searching = T,
-              pageLength = 5,
-              dom = 'Bfrtip', 
-              buttons = c('csv')))
-
-```
-
-
-### GT Mat for Filtered Segegrating SVs
-
-
-```{r, results='asis'}
 passSV <- rbind.data.frame(passDELs.gtmat, passDUPs.gtmat) 
-  DT::datatable(passSV, 
-                extensions='Buttons',
-                options = list(
-                  searching = T,
-                  pageLength = 5,
-                  dom = 'Bfrtip', 
-                  buttons = c('csv')))
+
+DT::datatable(passSV, 
+              extensions='Buttons',
+              options = list(
+                searching = T,
+                pageLength = 5,
+                dom = 'Bfrtip', 
+                buttons = c('csv')))
 
 ```
+
 
 
 ```{r}
@@ -250,3 +197,112 @@ save(lumpyvcf.seg,
 
 ```
 
+
+
+### Assemblytics
+```{r}
+#..............................................................
+# find file paths for the various sepi samples
+#..............................................................
+smpls <- list.files("~/Documents/MountPoints/mountedScratchLL/Projects/Sepi_Res_CaseStudy/assemblytics/", pattern = "Sepi[0-9][0-9]")
+
+file.paths <- data.frame(smpl = smpls,
+                            path = "~/Documents/MountPoints/mountedScratchLL/Projects/Sepi_Res_CaseStudy/assemblytics/xx/xx.Assemblytics_structural_variants.bed")
+# fix file path
+file.paths <- mapply(function(x,y){return(gsub("xx", x, y))}, 
+                        file.paths$smpl, file.paths$path)
+
+#..............................................................
+# read in files
+#..............................................................
+smpl.assmbl.struct.vars.list <- lapply(file.paths,function(x) {
+  ret <- readr::read_tsv(x)
+  colnames(ret)[colnames(ret) == "#reference"] <- "ref"
+  
+  # subset to INDELs
+  ret <- ret[ret$type %in% c("Insertion", "Deletion"), ]
+  
+  return(ret)
+})
+  
+names(smpl.assmbl.struct.vars.list) <- gsub(".Assemblytics_structural_variants.bed", "", basename(file.paths))
+
+```
+
+#### Assemblytics Analyzing All Indels
+```{r}
+#..............................................................
+# treat these as variants that we found and do a full join
+#..............................................................
+smpl.assmbl.struct.vars.list <- lapply(smpl.assmbl.struct.vars.list, 
+                                       function(x){
+                                         ret <- x %>% 
+                                           dplyr::mutate(var = 1)
+                                         return(ret)
+                                       })
+
+
+
+for (i in 1:(length(smpl.assmbl.struct.vars.list)-1)) {
+  if(i == 1){
+    smpl.assmbl.struct.vars.df <- dplyr::full_join(
+      smpl.assmbl.struct.vars.list[[1]],
+      smpl.assmbl.struct.vars.list[[2]],
+      by = c("ref", 
+             "ref_start",
+             "ref_stop",
+             "strand", 
+             "type",
+             "ref_gap_size",
+             "query_gap_size"))
+  } else {
+    smpl.assmbl.struct.vars.df <- dplyr::full_join(
+      smpl.assmbl.struct.vars.df,
+      smpl.assmbl.struct.vars.list[[i+1]],
+      by = c("ref", 
+             "ref_start",
+             "ref_stop",
+             "strand", 
+             "type",
+             "ref_gap_size",
+             "query_gap_size"))
+  }
+}
+
+#..............................................................
+# tidy up
+#..............................................................
+smpl.assmbl.struct.vars.df <- smpl.assmbl.struct.vars.df %>% 
+  dplyr::select("ref", 
+                "ref_start",
+                "ref_stop",
+                "strand", 
+                "type",
+                "ref_gap_size",
+                "query_gap_size", 
+                dplyr::starts_with("var"))
+# var to smpl name
+colnames(smpl.assmbl.struct.vars.df)[grepl("var", colnames(smpl.assmbl.struct.vars.df))] <- names(smpl.assmbl.struct.vars.list)
+
+smpl.assmbl.struct.vars.df[is.na(smpl.assmbl.struct.vars.df)] <- 0
+
+```
+
+One potential site (_"1687519	1687629	+	Deletion	110"_) but based on visual inspection, not real. 
+**Note, we are imputting that a "no-call" is referrent here based on the assemblies.**
+```{r, results='asis'}
+DT::datatable(smpl.assmbl.struct.vars.df, extensions='Buttons',
+               options = list(
+              searching = T,
+              pageLength = 5,
+              dom = 'Bfrtip', 
+              buttons = c('csv')))
+
+```
+
+
+
+###### _Session Info_
+```{r}
+sessionInfo()
+```

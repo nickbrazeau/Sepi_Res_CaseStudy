@@ -1,21 +1,11 @@
 ---
-title: "Whole Genome Single Nucleotide Variant Analysis among UNFILTERED data for Sepi Resistance"
-author: "Nicholas F. Brazeau"
-date: "`r format(Sys.time(), '%B %d, %Y')`"
-output:
-  rmarkdown::html_document:
-    highlight: textmate
-    theme: lumen
-    toc: true
-    code_folding: hide
+output: html_document
 editor_options: 
   chunk_output_type: console
 ---
 
+# Short Variant Discovery (Raw)
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = T, message = F, warning = F, fig.width = 10, fig.height = 7, results = 'hide')
-```
 
 ```{r}
 #............
@@ -39,25 +29,21 @@ rawvcf <- vcfR::read.vcfR("~/Documents/MountPoints/mountedScratchLL/Projects/Sep
 ```
 
 
-# Goal 
+## Goal 
 **Overall**: To detect putative drug resistance mutation(s) in clinical isolates of _S. epidermidis_ from a patient with phenotypic resistance.   
 **Immediate**: QC and Analysis of Segregating Sites and putative Drug-rx mutations on **UNFILTERED** VCF.
 
+**Note, `gatk happlotypecaller` is optimized for short variant discovery**. 
+
 ## Background
-
-Over their course of treatment, a patient developed multi-drug resistant _S. epidermidis_. We are attempting to identify putative drug resistance mutations in line with the phenotypic data. **The purpose of this script is to filter the QC-passed VCFS**. 
-
  Thus far, I have done the following: 
 
 1. Aligned with `bwa-mem` with default parameters to fasta from [NCBI](https://www.ncbi.nlm.nih.gov/genome/155?genome_assembly_id=299299)
 2. Deduplicated and mate-fixed PE reads (python modules)
 3. Variant called with `gatk haplotype caller`
 
- 
-**Note, `gatk happlotypecaller` is optimized for short variant discovery**. SVs will be analyzed in a separate script with `smoove`. 
 
-
-## Subset to Segregating Sites 
+### Subset to Segregating Sites 
 
 Given that these are essentially clonal samples, what we care about are segregating sites, or sites that differ among the isolates. In order to be as sensitive as possible, we will say a site is different if the WSAF differs by 0.05 among any of the samples. By doing so, we account for potential minor clones that are present in the clinical isolates but were not detected through the genotype call. In addition, we are only going to consider biallelic sites under the assumption that multiallelic sites are due to sequencing error and not two new alleles actually being supported in these essentially clonal populations. 
 
@@ -107,15 +93,15 @@ rawvcf.bi.seg.chrompos.wsnraf <- dplyr::bind_cols(rawvcf.bi.seg.chrompos, rawvcf
 DT::datatable(rawvcf.bi.seg.chrompos.wsnraf, 
               extensions = 'Buttons', 
               options = list(dom = 'Bfrtip',buttons = c('csv'), 
-                             pageLength = 50))
+                             pageLength = 10))
 
 ```
 
 
-## Potential Sites Of Interest
+### Potential Sites Of Interest
 Potential sites determined by scanning sensitive phenotypes for alleles less than 0.2 or greater than 0.8 when the resistant phenotype alleles were greater than 0.8 or less than 0.2, respectively. In other words, look for sites where the alleles among the sensitive and resistant phenotypes diverge.
 
-#### High Fix Sites
+##### High Fix Sites
 ```{r, results='asis'}
 # looking for fixation
 highfix <- apply(rawvcf.bi.seg.chrompos.wsnraf, 1, function(x){
@@ -143,7 +129,7 @@ DT::datatable(rawvcf.bi.seg.chrompos.wsnraf[highfix,],
 
 
 ```
-#### Low Fix Sites
+##### Low Fix Sites
 ```{r, results='asis'}
 
 DT::datatable(rawvcf.bi.seg.chrompos.wsnraf[lowfix,], 
@@ -154,7 +140,7 @@ DT::datatable(rawvcf.bi.seg.chrompos.wsnraf[lowfix,],
 ```
 
 
-### Visualize Seq Sites with Respect to Time
+#### Visualize Seq Sites with Respect to Time
 
 ```{r}
 
@@ -257,3 +243,7 @@ saveRDS(circ_wsaf_plot, file = "~/Documents/GitHub/Sepi_Res_CaseStudy/analyze_se
 
 ```
 
+###### _Session Info_
+```{r}
+sessionInfo()
+```

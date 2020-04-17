@@ -1,0 +1,166 @@
+---
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+# Whole Genome Coverage & Filtering 
+
+
+```{r imports}
+library(tidyverse)
+library(RColorBrewer)
+library(DT)
+
+remotes::install_github("nickbrazeau/NFBtools", ref = "6b441643c74336b636282fcff2b1b51ca3eb0094")
+library(NFBtools) # just using the basic functionality of bamCov.R 
+
+```
+## Background
+Over their course of treatment at UNC, the patient developed multi-drug resistant _S. epidermidis_. I am currently blinded to timing and resistance phenotype data but am attempting to identify putative drug resistance mutations. 
+
+### Goal 
+**Overall**: To detect putative drug resistance mutation(s) in clinical isolates of _S. epidermidis_ from a patient with phenotypic resistance.   
+**Immediate**: Quality control of samples and determine read depth.
+
+
+
+
+#### FlagStats
+```{r flagstat, results='asis'}
+flagsumfiles <- dir(path="~/Documents/MountPoints/mountedScratchLL/Projects/Sepi_Res_CaseStudy/SumSTATsandQC/FlagStats", full.names = TRUE)
+
+readflag <- function(path){
+  out <- read_tsv(path, col_names = F)
+  sample <- stringr::str_split_fixed(string=basename(path), pattern="_", n=2)[1]
+  out <- as.data.frame(cbind(sample, out))
+  colnames(out) <- c("sample", "summary_stat")
+  return(out)
+}
+
+flagsumfiles <- lapply(flagsumfiles, readflag)
+flagsumfiles <- do.call("rbind", flagsumfiles)
+
+DT::datatable(flagsumfiles, extensions = 'Buttons', options = list(dom = 'Bfrtip',buttons = c('csv')))
+
+
+```
+
+
+#### Callable Loci Summary
+Output is based on a mimimum base quality of 20, minimum mapping quality of 10, and a minimum depht of 4 (these are all > criterion).  
+  
+```{r calloci, results='asis'}
+calllocisumfiles <- dir(path="~/Documents/MountPoints/mountedScratchLL/Projects/Sepi_Res_CaseStudy/SumSTATsandQC/CallableLoci/", full.names = TRUE)
+calllocisumfiles <- calllocisumfiles[grepl(pattern = "_summarytable.txt", x = basename(calllocisumfiles))]
+readcallloci <- function(path){
+  out <- read_tsv(path, col_names = T)
+  sample <- stringr::str_split_fixed(string=basename(path), pattern="_", n=2)[1]
+  out <- as.data.frame(cbind(sample, out))
+  return(out)
+}
+
+calllocisumfiles <- lapply(calllocisumfiles, readcallloci)
+calllocisumfiles <- do.call("rbind", calllocisumfiles)
+
+DT::datatable(calllocisumfiles, extensions = 'Buttons', options = list(dom = 'Bfrtip',buttons = c('csv')))
+
+
+```
+
+#### Genomic Coverage by Sample
+Presented is the overall Genomic Coverage and a Summary Table by Sample. 
+```{r genomcov, fig.width=12, fig.height=12, dpi=500}
+
+#------------------------
+# read in
+#------------------------
+bamcovs <- NFBtools::bedtoolsgenomecov2bamCov(gencovdir = "~/Documents/MountPoints/mountedScratchLL/Projects/Sepi_Res_CaseStudy/SumSTATsandQC/coverage/data/")
+
+#------------------------
+# genomic summary plot
+#------------------------
+genomcovplot <- NFBtools::bamCov2OverallPercCov(bamcovs)
+
+
+#------------------------
+# genomic summary table
+#------------------------
+genomsummarydepth <- do.call("rbind", lapply(bamcovs, function(x){x[["genomsummarydepth"]]})) %>% 
+  dplyr::mutate_if(is.numeric, round, 2)
+
+#https://stackoverflow.com/questions/11774703/adding-text-to-a-grid-table-plot/11775211#11775211
+genomtable <- gridExtra::tableGrob(genomsummarydepth, rows = NULL)
+title <- grid::textGrob("Summary of Coverage Depth by Sample", gp=grid::gpar(fontfamily="Arial", fontsize=14, fontface="bold"))
+padding <- unit(5,"mm")
+genomtable <- gtable::gtable_add_rows(
+        genomtable,
+        heights = grid::grobHeight(title) + padding,
+        pos = 0)
+genomtable <- gtable::gtable_add_grob(
+        genomtable,
+        list(title),
+        1, 1, 1, ncol(genomtable))
+
+grobs = list(genomcovplot, genomtable)
+gridExtra::grid.arrange(grobs = grobs, layout_matrix = rbind(c(1),
+                                                             c(1),
+                                                             c(2)
+                                                             )
+                        )
+
+
+jpeg(paste0("~/Documents/GitHub/Sepi_Res_CaseStudy/analyze_sepi_cc/figures/SFig1-Genomic_Coverage.jpg"), units = "in", width = 8, height = 11, res = 200)
+gridExtra::grid.arrange(grobs = grobs, layout_matrix = rbind(c(1),
+                                                             c(1),
+                                                             c(2)
+                                                             )
+                        )
+graphics.off()
+
+
+```
+
+
+##### Summary From Figure
+
+```{r, results='asis'}
+
+genomoutsummdepth <- do.call("rbind", 
+                             lapply(bamcovs, function(x){x[["genomcovperc"]]})) %>% 
+  dplyr::mutate_if(is.numeric, round, 4)
+
+DT::datatable(genomoutsummdepth, extensions = 'Buttons', options = list(dom = 'Bfrtip',buttons = c('csv'), pageLength = 10))
+
+
+```
+
+#### Sample-Level Genomic Coverage
+```{r smplcov, fig.width=18, fig.height=12, results='hide', dpi=500}
+
+
+NFBtools::bamCov2SmplRaster(input = bamcovs)
+
+
+
+```
+
+#### Windowed Coverage
+```{r windowcovbysmpl}
+
+do.call("rbind.data.frame", purrr::map(purrr::map(bamcovs, "windowcov"), "windowcovdf")) %>% 
+  tibble::as_tibble(.) %>% 
+  DT::datatable(., extensions = 'Buttons', options = list(dom = 'Bfrtip',buttons = c('csv'), pageLength = 100))
+
+```
+
+```{r}
+
+saveRDS(bamcovs, file = "~/Documents/GitHub/Sepi_Res_CaseStudy/analyze_sepi_cc/data/derived_data/Sepi_coverage.RDS")
+
+```
+
+###### _Session Info_
+```{r}
+sessionInfo()
+```
