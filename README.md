@@ -1,7 +1,7 @@
 # Reproducibility
 
 In order to recreate the bioinformatics and analyses
-completed in the Manuscript Brazeau & Levinson _et al._ 2019,
+completed in the Manuscript Brazeau & Levinson _et al._ 2020 (PMCID: [pending]()),
 you will need to run the two "pipelines" below:
 
 ## Workflow Overview
